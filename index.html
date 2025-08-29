@@ -142,12 +142,20 @@
                         // Запуск отслеживания ориентации через Telegram API
                         if (tg.DeviceOrientation) {
                             tg.DeviceOrientation.start({
-                                refresh_rate: 50, // Частота обновления (мс), можно настроить
-                                need_absolute: false // Не нужно абсолютные данные для простого наклона
+                                refresh_rate: 50, // Более частые обновления для плавности
+                                need_absolute: false // Относительные данные для наклона
                             }, (success) => {
                                 if (success) {
                                     tg.HapticFeedback.impactOccurred('light');
                                     isOrientationSupported = true;
+                                    // Слушатель события для обновления targetRotation
+                                    tg.onEvent('deviceOrientationChanged', () => {
+                                        // Преувеличиваем наклон для видимости (*1.5)
+                                        targetRotation.x = (tg.DeviceOrientation.beta || 0) * 1.5;
+                                        targetRotation.y = (tg.DeviceOrientation.gamma || 0) * 1.5;
+                                        // Debug: Проверьте в консоли
+                                        console.log('Beta (x):', targetRotation.x, 'Gamma (y):', targetRotation.y);
+                                    });
                                 } else {
                                     infoText.style.display = 'block';
                                     infoText.textContent = 'Доступ к ориентации устройства недоступен. Текст будет вращаться автоматически.';
@@ -193,11 +201,9 @@
 
                 if (textMesh) {
                     if (isOrientationSupported) {
-                        // Читаем данные из Telegram API (в радианах, с clamping ±45° = ±π/4)
-                        targetRotation.x = Math.max(-Math.PI / 4, Math.min(Math.PI / 4, tg.DeviceOrientation.beta || 0));
-                        targetRotation.y = Math.max(-Math.PI / 4, Math.min(Math.PI / 4, tg.DeviceOrientation.gamma || 0));
-                        textMesh.rotation.x += (targetRotation.x - textMesh.rotation.x) * 0.05;
-                        textMesh.rotation.y += (targetRotation.y - textMesh.rotation.y) * 0.05;
+                        // Сглаживание: Увеличили коэффициент до 0.1 для быстрее реакции
+                        textMesh.rotation.x += (targetRotation.x - textMesh.rotation.x) * 0.1;
+                        textMesh.rotation.y += (targetRotation.y - textMesh.rotation.y) * 0.1;
                     } else {
                         textMesh.rotation.y += 0.002;
                         textMesh.rotation.x = Math.sin(elapsedTime * 10) * 0.2;
