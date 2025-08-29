@@ -53,28 +53,10 @@
             box-sizing: border-box;
             pointer-events: none; /* UI не перехватывает клики по умолчанию */
         }
-        /* Стили для кнопки и сообщений */
+        /* Стили для сообщений */
         .ui-element {
             pointer-events: auto; /* Элементы внутри контейнера могут быть кликабельны */
             margin-bottom: 15px;
-        }
-        .permission-button {
-            padding: 14px 28px;
-            font-size: 16px;
-            font-weight: 600;
-            color: var(--tg-button-text-color);
-            background-color: var(--tg-button-color);
-            border: none;
-            border-radius: 12px;
-            cursor: pointer;
-            transition: transform 0.2s ease, box-shadow 0.2s ease;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
-        }
-        .permission-button:hover {
-            transform: translateY(-2px);
-        }
-        .permission-button:active {
-            transform: translateY(0);
         }
         .info-text {
             font-size: 14px;
@@ -101,7 +83,6 @@
 <body>
     <div id="ui-container">
         <div id="loader" class="loader ui-element"></div>
-        <button id="permissionButton" class="permission-button ui-element" style="display: none;">Включить управление наклоном</button>
         <p id="infoText" class="info-text ui-element" style="display: none;"></p>
     </div>
 
@@ -119,7 +100,6 @@
 
             const uiContainer = document.getElementById('ui-container');
             const loader = document.getElementById('loader');
-            const permissionButton = document.getElementById('permissionButton');
             const infoText = document.getElementById('infoText');
             
             // --- 2. Инициализация 3D-сцены ---
@@ -144,7 +124,6 @@
 
                 // Загрузка шрифта
                 const fontLoader = new THREE.FontLoader();
-                // Используем надежный CDN (jsDelivr)
                 fontLoader.load('https://cdn.jsdelivr.net/npm/three@0.128.0/examples/fonts/helvetiker_bold.typeface.json',
                     (font) => {
                         const textGeometry = new THREE.TextGeometry('devtol скоро', {
@@ -159,7 +138,25 @@
                         textMesh = new THREE.Mesh(textGeometry, textMaterial);
                         scene.add(textMesh);
                         loader.style.display = 'none'; // Убираем загрузчик
-                        checkForPermissions(); // После загрузки шрифта проверяем разрешения
+                        
+                        // Запуск отслеживания ориентации через Telegram API
+                        if (tg.DeviceOrientation) {
+                            tg.DeviceOrientation.start({
+                                refresh_rate: 50, // Частота обновления (мс), можно настроить
+                                need_absolute: false // Не нужно абсолютные данные для простого наклона
+                            }, (success) => {
+                                if (success) {
+                                    tg.HapticFeedback.impactOccurred('light');
+                                    isOrientationSupported = true;
+                                } else {
+                                    infoText.style.display = 'block';
+                                    infoText.textContent = 'Доступ к ориентации устройства недоступен. Текст будет вращаться автоматически.';
+                                }
+                            });
+                        } else {
+                            infoText.style.display = 'block';
+                            infoText.textContent = 'API ориентации недоступен в этой версии Telegram. Текст будет вращаться автоматически.';
+                        }
                     },
                     undefined,
                     (error) => {
@@ -188,48 +185,7 @@
                 animate();
             }
 
-            // --- 3. Проверка и запрос разрешений ---
-            function checkForPermissions() {
-                // Эта проверка специфична для iOS 13+
-                if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
-                    permissionButton.style.display = 'block';
-                    permissionButton.onclick = requestDeviceOrientation;
-                } else {
-                    // Для Android и других устройств, где разрешение не нужно
-                    window.addEventListener('deviceorientation', handleOrientation);
-                    isOrientationSupported = true;
-                }
-            }
-
-            function requestDeviceOrientation() {
-                DeviceOrientationEvent.requestPermission()
-                    .then(permissionState => {
-                        if (permissionState === 'granted') {
-                            tg.HapticFeedback.impactOccurred('light');
-                            window.addEventListener('deviceorientation', handleOrientation);
-                            isOrientationSupported = true;
-                            permissionButton.style.display = 'none'; // Скрываем кнопку после успеха
-                        } else {
-                            infoText.style.display = 'block';
-                            infoText.textContent = 'Доступ отклонен. Текст будет вращаться автоматически.';
-                            permissionButton.style.display = 'none';
-                        }
-                    })
-                    .catch(error => {
-                        console.error('Ошибка запроса разрешений:', error);
-                        infoText.style.display = 'block';
-                        infoText.textContent = 'Произошла ошибка при запросе доступа к сенсорам.';
-                        permissionButton.style.display = 'none';
-                    });
-            }
-
-            // --- Вспомогательные функции ---
-            function handleOrientation(event) {
-                if (!event.beta || !event.gamma) return;
-                targetRotation.x = THREE.MathUtils.degToRad(Math.max(-45, Math.min(45, event.beta)));
-                targetRotation.y = THREE.MathUtils.degToRad(Math.max(-45, Math.min(45, event.gamma)));
-            }
-            
+            // --- Функция анимации ---
             function animate() {
                 requestAnimationFrame(animate);
                 const elapsedTime = Date.now() * 0.0001;
@@ -237,6 +193,9 @@
 
                 if (textMesh) {
                     if (isOrientationSupported) {
+                        // Читаем данные из Telegram API (в радианах, с clamping ±45° = ±π/4)
+                        targetRotation.x = Math.max(-Math.PI / 4, Math.min(Math.PI / 4, tg.DeviceOrientation.beta || 0));
+                        targetRotation.y = Math.max(-Math.PI / 4, Math.min(Math.PI / 4, tg.DeviceOrientation.gamma || 0));
                         textMesh.rotation.x += (targetRotation.x - textMesh.rotation.x) * 0.05;
                         textMesh.rotation.y += (targetRotation.y - textMesh.rotation.y) * 0.05;
                     } else {
@@ -262,4 +221,3 @@
     </script>
 </body>
 </html>
-
