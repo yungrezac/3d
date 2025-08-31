@@ -136,7 +136,7 @@
                 <p id="driver-info" class="font-semibold" style="color: var(--tg-text-color);">Toyota Camry, A123BC</p>
                 <p id="car-info" class="text-sm" style="color: var(--tg-hint-color);">Черный цвет</p>
             </div>
-            <div class="mt-3 flex justify-center">
+            <div id="call-driver-container" class="mt-3 flex justify-center">
                 <button id="call-driver-btn" class="px-4 py-2 rounded-lg text-white" style="background-color: var(--tg-button-color);">Позвонить водителю</button>
             </div>
         </div>
@@ -169,7 +169,7 @@
     // --- CONFIGURATION ---
     const MAPBOX_ACCESS_TOKEN = 'pk.eyJ1IjoieXVuZ3JlemFjIiwiYSI6ImNtOW10ZzJ6bDBjNHUyanI3ejc5eXo1d2MifQ._tryk9cXjfReUGLGnNkm6Q'; // Replace with your token
     const KOZMODEMYANSK_COORDS = [46.5700, 56.3333];
-    const BASE_PRICE = 50;
+    const BASE_PRICE = 100;
     const PRICE_PER_KM = 10;
 
     const FAKE_DRIVERS = [
@@ -191,6 +191,7 @@
     const driverInfoEl = document.getElementById('driver-info');
     const carInfoEl = document.getElementById('car-info');
     const callDriverBtn = document.getElementById('call-driver-btn');
+    const callDriverContainer = document.getElementById('call-driver-container');
     const finalPriceEl = document.getElementById('final-price');
     const estimatedTimeEl = document.getElementById('estimated-time');
     const estimatedDistanceEl = document.getElementById('estimated-distance');
@@ -328,7 +329,12 @@
         try {
             const res = await fetch(url);
             const data = await res.json();
-            return data.routes[0];
+            if (data.routes && data.routes.length > 0) {
+                return data.routes[0];
+            } else {
+                console.error('No routes found');
+                return null;
+            }
         } catch (error) {
             console.error('Error fetching route:', error);
             return null;
@@ -456,6 +462,7 @@
             
             setTimeout(() => {
                 tripStatusText.textContent = 'В пути';
+                callDriverContainer.style.display = 'none';
                 getRouteAndAnimate(userLocation, destinationLocation, 'dropoff', (finalRouteGeoJSON) => {
                     switchState('finished');
                     finalPriceEl.textContent = `${calculatedPrice}₽ наличными`;
@@ -505,9 +512,13 @@
             
             driverMarker.setLngLat(currentPoint);
 
-            if (progress < 1) {
+            if (progress < 1 && route.length > 1) {
                 const nextPointIndex = Math.floor(progress * (route.length - 1)) + 1;
-                const bearing = turf.bearing(turf.point(currentPoint), turf.point(route[Math.min(nextPointIndex, route.length - 1)]));
+                const nextPoint = route[Math.min(nextPointIndex, route.length - 1)];
+                let bearing = turf.bearing(turf.point(currentPoint), turf.point(nextPoint));
+                if (isNaN(bearing)) {
+                    bearing = 0;
+                }
                 driverMarker.getElement().style.transform = `rotate(${bearing}deg)`;
             }
             
@@ -602,6 +613,7 @@
         
         destinationLocation = null;
         tripInfoDiv.classList.add('hidden');
+        callDriverContainer.style.display = 'flex';
         map.flyTo({ center: userLocation || KOZMODEMYANSK_COORDS, zoom: 15 });
         userMarker.setLngLat(userLocation);
         switchState('addressSelection');
