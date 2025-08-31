@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Такси Козьмодемьянск</title>
     
-    <script src='https://api.mapbox.com/mapbox-gl-js/v2.9.1/mapbox-gl.js'></script>
-    <link href='https://api.mapbox.com/mapbox-gl-js/v2.9.1/mapbox-gl.css' rel='stylesheet' />
+    <script src='https://api.mapbox.com/mapbox-gl-js/v3.4.0/mapbox-gl.js'></script>
+    <link href='https://api.mapbox.com/mapbox-gl-js/v3.4.0/mapbox-gl.css' rel='stylesheet' />
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -235,7 +235,6 @@
     let estimatedDuration = 0, estimatedDistance = 0, calculatedPrice = 0;
     let currentTripId = null;
     let selectedRating = 0;
-    let lastBearing = 0;
 
     // --- TELEGRAM SDK INITIALIZATION ---
     const tg = window.Telegram.WebApp;
@@ -264,7 +263,7 @@
     function initializeMap() {
         mapboxgl.accessToken = MAPBOX_ACCESS_TOKEN;
         map = new mapboxgl.Map({
-            container: 'map', style: 'mapbox://styles/mapbox/streets-v11',
+            container: 'map', style: 'mapbox://styles/mapbox/streets-v12',
             center: KOZMODEMYANSK_COORDS, zoom: 13, pitch: 20
         });
         map.on('load', () => {
@@ -276,7 +275,7 @@
     function initializeGeocoder() {
         geocoder = new MapboxGeocoder({
             accessToken: mapboxgl.accessToken, mapboxgl: mapboxgl,
-            marker: { color: 'orange' }, placeholder: 'Куда поедем?',
+            marker: false, placeholder: 'Куда поедем?',
             bbox: [46.4, 56.2, 46.7, 56.4], proximity: 'ip',
             countries: 'ru', language: 'ru-RU'
         });
@@ -300,9 +299,12 @@
         navigator.geolocation.getCurrentPosition(
             (position) => {
                 userLocation = [position.coords.longitude, position.coords.latitude];
-                const el = document.createElement('div');
-                el.className = 'user-marker';
-                userMarker = new mapboxgl.Marker(el).setLngLat(userLocation).addTo(map);
+                if(userMarker) userMarker.setLngLat(userLocation);
+                else {
+                    const el = document.createElement('div');
+                    el.className = 'user-marker';
+                    userMarker = new mapboxgl.Marker(el).setLngLat(userLocation).addTo(map);
+                }
                 map.flyTo({ center: userLocation, zoom: 15 });
                 
                 fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${userLocation.join(',')}.json?access_token=${MAPBOX_ACCESS_TOKEN}&language=ru`)
@@ -318,9 +320,11 @@
                 userLocation = KOZMODEMYANSK_COORDS; 
                 fromAddressText = 'Центр города';
                 document.getElementById('from-address').textContent = fromAddressText;
-                const el = document.createElement('div');
-                el.className = 'user-marker';
-                userMarker = new mapboxgl.Marker(el).setLngLat(userLocation).addTo(map);
+                if(!userMarker) {
+                    const el = document.createElement('div');
+                    el.className = 'user-marker';
+                    userMarker = new mapboxgl.Marker(el).setLngLat(userLocation).addTo(map);
+                }
                 map.flyTo({ center: userLocation, zoom: 15 });
             },
             { enableHighAccuracy: true }
@@ -347,10 +351,10 @@
         tripInfoDiv.classList.remove('hidden');
 
         const geojson = { type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: data.geometry.coordinates } };
-        addRouteLayer('estimated-route', geojson, '#9ca3af', 4, 0.5); // Gray dashed line
+        addRouteLayer('estimated-route', geojson, '#9ca3af', 4, 0.5); 
 
         const bounds = data.geometry.coordinates.reduce((b, coord) => b.extend(coord), new mapboxgl.LngLatBounds());
-        map.fitBounds(bounds, { padding: 80 });
+        map.fitBounds(bounds, { padding: {top: 40, bottom: 250, left: 40, right: 40} });
     }
 
     async function getRouteData(start, end) {
@@ -361,10 +365,9 @@
             const data = await res.json();
             if (data.routes && data.routes.length > 0) {
                 return data.routes[0];
-            } else {
-                console.error('No routes found');
-                return null;
             }
+            console.error('No routes found in API response');
+            return null;
         } catch (error) {
             console.error('Error fetching route:', error);
             return null;
@@ -381,9 +384,9 @@
     }
 
     function removeRouteLayer(id) {
-        if (map.getLayer(id)) {
-            map.removeLayer(id);
-            map.removeSource(id);
+        if(map.isStyleLoaded()) {
+            if (map.getLayer(id)) map.removeLayer(id);
+            if (map.getSource(id)) map.removeSource(id);
         }
     }
 
@@ -409,7 +412,7 @@
                 break;
             case 'searching':
                 tg.MainButton.setText(`Отменить`);
-                tg.MainButton.setParams({ color: '#ef4444' }); // Red color for cancel
+                tg.MainButton.setParams({ color: '#ef4444' });
                 tg.MainButton.show();
                 tg.MainButton.enable();
                 startCancellationTimer();
@@ -434,7 +437,7 @@
                     if (confirmed) {
                         switchState('searching');
                         removeRouteLayer('estimated-route');
-                        const randomDelay = Math.random() * 8000 + 4000; // 4-12s for demo
+                        const randomDelay = Math.random() * 8000 + 4000;
                         findDriverTimeout = setTimeout(startTripSimulation, randomDelay);
                     }
                 });
@@ -469,7 +472,7 @@
 
     function generateLicensePlate() {
         const letters = 'АВЕКМНОРСТУХ';
-        const region = '12'; // For Mari El
+        const region = '12';
         return `${letters[Math.floor(Math.random() * letters.length)]}${Math.floor(Math.random() * 900) + 100}${letters[Math.floor(Math.random() * letters.length)]}${letters[Math.floor(Math.random() * letters.length)]} ${region}`;
     }
 
@@ -486,6 +489,8 @@
         driverMarker = new mapboxgl.Marker(el).setLngLat(driverStartLocation).addTo(map);
 
         tripStatusText.textContent = 'Водитель подъезжает';
+        
+        // --- Start animation flow ---
         getRouteAndAnimate(driverStartLocation, userLocation, 'pickup', () => {
             tripStatusText.textContent = 'Водитель ожидает';
             driverEtaEl.textContent = 'Пожалуйста, выходите';
@@ -504,10 +509,13 @@
                         driver: `${driver.name} • ${driver.model}, ${plate}`, color: driver.color,
                         route: finalRouteGeoJSON, date: new Date().toLocaleString('ru-RU'),
                         distance: estimatedDistance.toFixed(1), duration: Math.ceil(estimatedDuration), price: calculatedPrice,
-                        rating: 0 // Initial rating
+                        rating: 0
                     });
                     tg.HapticFeedback.notificationOccurred('success');
-                    if(driverMarker) driverMarker.remove();
+                    if(driverMarker) {
+                        driverMarker.remove();
+                        driverMarker = null;
+                    }
                 });
             }, 5000); 
         });
@@ -520,101 +528,57 @@
 
     // --- MAP ROUTING & ANIMATION ---
     async function getRouteAndAnimate(start, end, tripPhase, onComplete) {
+        if (animationFrameId) {
+            cancelAnimationFrame(animationFrameId);
+        }
+
         const routeData = await getRouteData(start, end);
-        if (!routeData) {
+        if (!routeData || !routeData.geometry || !routeData.geometry.coordinates || routeData.geometry.coordinates.length < 2) {
             tg.showAlert('Ошибка построения маршрута. Поездка отменена.');
             resetAppToSelection();
             return;
         }
 
         const route = routeData.geometry.coordinates;
-        const duration = routeData.duration; // seconds
+        const duration = routeData.duration;
         const geojson = { type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: route } };
 
         addRouteLayer('route', geojson, 'var(--tg-accent-color, #3887be)', 5, 0.75, [1, 0]);
         
         const bounds = route.reduce((b, coord) => b.extend(coord), new mapboxgl.LngLatBounds(start, end));
-        map.fitBounds(bounds, { padding: 80, duration: 1000 });
+        map.fitBounds(bounds, { padding: {top: 40, bottom: 250, left: 40, right: 40}, duration: 1000 });
         
+        // Start animation ONLY after successful route fetch and validation
         animateMarkerAlongRoute(route, duration, () => onComplete(geojson), tripPhase);
     }
     
-    /**
-     * @description ИСПРАВЛЕННАЯ И УЛУЧШЕННАЯ ФУНКЦИЯ АНИМАЦИИ
-     * Эта функция была переработана для максимальной стабильности.
-     * 1.  Добавлены проверки на корректность маршрута.
-     * 2.  Начальный угол поворота водителя устанавливается по направлению первого сегмента маршрута.
-     * 3.  Добавлена проверка возвращаемых значений от `turf.js` для предотвращения ошибок,
-     * которые могли остановить цикл анимации.
-     * 4.  Логика сглаживания поворота сохранена для реалистичности.
-     */
     function animateMarkerAlongRoute(route, duration, onComplete, tripPhase) {
-        if (animationFrameId) {
-            cancelAnimationFrame(animationFrameId);
-        }
-        
-        if (!route || route.length < 2) {
-            console.error("Invalid route for animation.");
-            if (onComplete) onComplete();
-            return;
-        }
-
         const routeLine = turf.lineString(route);
         const routeDistance = turf.length(routeLine, { units: 'kilometers' });
         let startTime = performance.now();
-        
-        lastBearing = turf.bearing(turf.point(route[0]), turf.point(route[1]));
-        if (isNaN(lastBearing)) lastBearing = 0;
-
-        function lerpAngle(start, end, amount) {
-            let difference = Math.abs(end - start);
-            if (difference > 180) {
-                if (end > start) start += 360;
-                else end += 360;
-            }
-            let value = (start + ((end - start) * amount));
-            return (value % 360 + 360) % 360;
-        }
+        let lastBearing = turf.bearing(turf.point(route[0]), turf.point(route[1]));
 
         function animate(currentTime) {
             const elapsedTime = currentTime - startTime;
-            const animationSpeedFactor = 3; 
-            const effectiveDuration = duration / animationSpeedFactor;
-            const animationDurationMs = Math.max(effectiveDuration, 5) * 1000;
-            
-            let progress = elapsedTime / animationDurationMs;
-            if (progress > 1) progress = 1;
+            const progress = Math.min(elapsedTime / (duration * 1000 / 3), 1); // Speed up for demo
 
-            const currentDistance = routeDistance * progress;
-            const currentPointFeature = turf.along(routeLine, currentDistance, { units: 'kilometers' });
-            
-            if (!currentPointFeature || !currentPointFeature.geometry) {
-                cancelAnimationFrame(animationFrameId);
-                if (onComplete) onComplete();
-                return;
-            }
-            const currentCoords = currentPointFeature.geometry.coordinates;
+            const currentPoint = turf.along(routeLine, routeDistance * progress, { units: 'kilometers' });
+            const currentCoords = currentPoint.geometry.coordinates;
 
-            let targetBearing = lastBearing;
-            const lookAheadDistance = Math.min(currentDistance + 0.015, routeDistance); // 15m lookahead
-            if (lookAheadDistance > currentDistance) {
-                const lookAheadPointFeature = turf.along(routeLine, lookAheadDistance, { units: 'kilometers' });
-                if (lookAheadPointFeature) {
-                     const newBearing = turf.bearing(currentPointFeature, lookAheadPointFeature);
-                     if (!isNaN(newBearing)) {
-                        targetBearing = newBearing;
-                     }
-                }
-            }
+            // Look ahead for bearing calculation
+            const lookAheadPoint = turf.along(routeLine, routeDistance * Math.min(progress + 0.001, 1), { units: 'kilometers' });
+            const bearing = turf.bearing(currentPoint, lookAheadPoint);
             
-            lastBearing = lerpAngle(lastBearing, targetBearing, 0.1);
+            if(!isNaN(bearing)) {
+                lastBearing = bearing;
+            }
 
             if (driverMarker) {
                 driverMarker.setLngLat(currentCoords);
-                driverMarker.getElement().style.transform = `rotate(${lastBearing}deg)`;
+                driverMarker.setRotation(lastBearing);
             }
             
-            const etaMinutes = Math.ceil(((1 - progress) * effectiveDuration) / 60);
+            const etaMinutes = Math.ceil(((1 - progress) * duration) / 60 / 3);
             driverEtaEl.textContent = etaMinutes > 0 ? `Прибытие через ${etaMinutes} мин` : 'Прибыли';
             
             if (tripPhase === 'dropoff' && userMarker) {
@@ -623,12 +587,16 @@
             }
             
             if (progress >= 1) {
+                cancelAnimationFrame(animationFrameId);
                 if (onComplete) onComplete();
                 return;
             }
 
             animationFrameId = requestAnimationFrame(animate);
         }
+        
+        // Cancel any previous animation and start the new one
+        if (animationFrameId) cancelAnimationFrame(animationFrameId);
         animationFrameId = requestAnimationFrame(animate);
     }
     
@@ -636,21 +604,15 @@
     function loadTripHistory() {
         tg.CloudStorage.getItem('trip_history', (err, value) => {
             if (value) {
-                try {
-                    tripHistory = JSON.parse(value);
-                } catch(e) {
-                    console.error("Failed to parse trip history:", e);
-                    tripHistory = [];
-                }
+                try { tripHistory = JSON.parse(value); } catch(e) { tripHistory = []; }
             }
         });
     }
     
     function saveTripToHistory(trip) {
         const index = tripHistory.findIndex(t => t.id === trip.id);
-        if (index !== -1) {
-            tripHistory[index] = trip;
-        } else {
+        if (index !== -1) tripHistory[index] = trip;
+        else {
             tripHistory.unshift(trip);
             if (tripHistory.length > 20) tripHistory.pop();
         }
@@ -675,20 +637,15 @@
                 try {
                     const route = JSON.parse(e.currentTarget.dataset.route);
                     if (route) showHistoryRoute(route);
-                } catch (err) {
-                    console.error("Failed to parse history route", err);
-                }
+                } catch (err) { console.error("Failed to parse history route", err); }
             });
         });
     }
     
     function showHistoryRoute(routeGeoJSON) {
         closeModal();
-        removeRouteLayer('route');
-        removeRouteLayer('history-route');
-
+        removeRouteLayer('route'); removeRouteLayer('history-route');
         addRouteLayer('history-route', routeGeoJSON, '#9ca3af', 5, 0.8, [1, 0]);
-
         const bounds = routeGeoJSON.geometry.coordinates.reduce((b, c) => b.extend(c), new mapboxgl.LngLatBounds());
         map.fitBounds(bounds, { padding: 80 });
     }
@@ -719,7 +676,7 @@
         if (animationFrameId) cancelAnimationFrame(animationFrameId);
         removeRouteLayer('route');
         if (driverMarker) { driverMarker.remove(); driverMarker = null; }
-        geocoder.clear();
+        if(geocoder) geocoder.clear();
         
         destinationLocation = null;
         tripInfoDiv.classList.add('hidden');
@@ -753,8 +710,9 @@
         star.addEventListener('click', () => {
             selectedRating = parseInt(star.dataset.rating);
             ratingStars.forEach(s => {
-                s.classList.toggle('selected', parseInt(s.dataset.rating) <= selectedRating);
-                s.style.color = parseInt(s.dataset.rating) <= selectedRating ? '#fbbf24' : '';
+                const isSelected = parseInt(s.dataset.rating) <= selectedRating;
+                s.classList.toggle('selected', isSelected);
+                s.style.color = isSelected ? '#fbbf24' : '';
             });
             const trip = tripHistory.find(t => t.id === currentTripId);
             if (trip) {
@@ -773,3 +731,4 @@
 <link rel="stylesheet" href="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-geocoder/v5.0.0/mapbox-gl-geocoder.css" type="text/css">
 </body>
 </html>
+
