@@ -44,8 +44,7 @@
             background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="white" width="24px" height="24px"><path d="M0 0h24v24H0z" fill="none"/><path d="M18.92 6.01C18.72 5.42 18.16 5 17.5 5h-11C5.84 5 5.28 5.42 5.08 6.01L3 12v8c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h12v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-8l-2.08-5.99zM6.5 16c-.83 0-1.5-.67-1.5-1.5S5.67 13 6.5 13s1.5.67 1.5 1.5S7.33 16 6.5 16zm11 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zM5 11l1.5-4.5h11L19 11H5z"/></svg>');
             background-size: 60%; background-position: center; background-repeat: no-repeat;
             background-color: #2a2a2a; border-radius: 50%;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.4); 
-            /* Убрали transition, так как transform будет управляться через JS для плавности */
+            box-shadow: 0 2px 8px rgba(0,0,0,0.4);
         }
         .mapboxgl-ctrl-geocoder, .mapboxgl-ctrl-geocoder--input {
             background-color: var(--tg-secondary-bg-color);
@@ -236,7 +235,7 @@
     let estimatedDuration = 0, estimatedDistance = 0, calculatedPrice = 0;
     let currentTripId = null;
     let selectedRating = 0;
-    let lastBearing = 0; // Переменная для хранения последнего угла поворота маркера водителя
+    let lastBearing = 0;
 
     // --- TELEGRAM SDK INITIALIZATION ---
     const tg = window.Telegram.WebApp;
@@ -328,7 +327,7 @@
         );
     }
 
-    // --- IMPROVED ROUTE ESTIMATION ---
+    // --- ROUTE ESTIMATION ---
     async function showEstimatedRouteAndInfo() {
         if (!userLocation || !destinationLocation) return;
 
@@ -401,6 +400,7 @@
             case 'addressSelection':
                 if (userLocation && destinationLocation) {
                     tg.MainButton.setText(`Заказать такси (${calculatedPrice}₽)`);
+                    tg.MainButton.setParams({ color: tg.themeParams.button_color });
                     tg.MainButton.show();
                     tg.MainButton.enable();
                 } else {
@@ -434,7 +434,7 @@
                     if (confirmed) {
                         switchState('searching');
                         removeRouteLayer('estimated-route');
-                        const randomDelay = Math.random() * 10000 + 5000; // 5-15s for demo
+                        const randomDelay = Math.random() * 8000 + 4000; // 4-12s for demo
                         findDriverTimeout = setTimeout(startTripSimulation, randomDelay);
                     }
                 });
@@ -509,12 +509,12 @@
                     tg.HapticFeedback.notificationOccurred('success');
                     if(driverMarker) driverMarker.remove();
                 });
-            }, 5000); // Increased wait time for realism
+            }, 5000); 
         });
     }
 
     function getRandomNearbyLocation(baseLocation) {
-        const offset = 0.02; // Smaller offset for closer drivers
+        const offset = 0.02; // ~2km
         return [baseLocation[0] + (Math.random() - 0.5) * offset, baseLocation[1] + (Math.random() - 0.5) * offset];
     }
 
@@ -522,53 +522,55 @@
     async function getRouteAndAnimate(start, end, tripPhase, onComplete) {
         const routeData = await getRouteData(start, end);
         if (!routeData) {
-            tg.showAlert('Ошибка маршрута. Попробуйте позже.');
+            tg.showAlert('Ошибка построения маршрута. Поездка отменена.');
+            resetAppToSelection();
             return;
         }
 
         const route = routeData.geometry.coordinates;
-        if (route.length < 2) {
-            onComplete({ type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: [start, end] } });
-            return;
-        }
-
         const duration = routeData.duration; // seconds
         const geojson = { type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: route } };
 
-        addRouteLayer('route', geojson, 'var(--tg-accent-color, #3887be)', 5, 0.75, [1, 0]); // Solid line
+        addRouteLayer('route', geojson, 'var(--tg-accent-color, #3887be)', 5, 0.75, [1, 0]);
         
         const bounds = route.reduce((b, coord) => b.extend(coord), new mapboxgl.LngLatBounds(start, end));
         map.fitBounds(bounds, { padding: 80, duration: 1000 });
+        
         animateMarkerAlongRoute(route, duration, () => onComplete(geojson), tripPhase);
     }
     
     /**
-     * @description УЛУЧШЕННАЯ ФУНКЦИЯ АНИМАЦИИ
-     * Эта функция была полностью переписана для обеспечения плавной анимации.
-     * 1.  Использует `turf.js` для точного позиционирования маркера вдоль линии маршрута.
-     * 2.  Для плавного поворота, направление (`bearing`) рассчитывается не к следующей точке из массива,
-     * а к точке, находящейся на небольшом расстоянии впереди по линии маршрута. Это позволяет
-     * маркеру "смотреть" вдоль дороги, а не на следующую вершину ломаной линии.
-     * 3.  Угол поворота сглаживается с помощью линейной интерполяции (`lerpAngle`),
-     * чтобы избежать резких рывков при смене направления, особенно на крутых поворотах.
-     * 4.  Анимация синхронизирована с `requestAnimationFrame` для максимальной производительности.
+     * @description ИСПРАВЛЕННАЯ И УЛУЧШЕННАЯ ФУНКЦИЯ АНИМАЦИИ
+     * Эта функция была переработана для максимальной стабильности.
+     * 1.  Добавлены проверки на корректность маршрута.
+     * 2.  Начальный угол поворота водителя устанавливается по направлению первого сегмента маршрута.
+     * 3.  Добавлена проверка возвращаемых значений от `turf.js` для предотвращения ошибок,
+     * которые могли остановить цикл анимации.
+     * 4.  Логика сглаживания поворота сохранена для реалистичности.
      */
     function animateMarkerAlongRoute(route, duration, onComplete, tripPhase) {
-        if (animationFrameId) cancelAnimationFrame(animationFrameId);
+        if (animationFrameId) {
+            cancelAnimationFrame(animationFrameId);
+        }
+        
+        if (!route || route.length < 2) {
+            console.error("Invalid route for animation.");
+            if (onComplete) onComplete();
+            return;
+        }
 
         const routeLine = turf.lineString(route);
         const routeDistance = turf.length(routeLine, { units: 'kilometers' });
         let startTime = performance.now();
         
-        // Функция для сглаживания угла поворота (линейная интерполяция)
+        lastBearing = turf.bearing(turf.point(route[0]), turf.point(route[1]));
+        if (isNaN(lastBearing)) lastBearing = 0;
+
         function lerpAngle(start, end, amount) {
             let difference = Math.abs(end - start);
             if (difference > 180) {
-                if (end > start) {
-                    start += 360;
-                } else {
-                    end += 360;
-                }
+                if (end > start) start += 360;
+                else end += 360;
             }
             let value = (start + ((end - start) * amount));
             return (value % 360 + 360) % 360;
@@ -576,45 +578,55 @@
 
         function animate(currentTime) {
             const elapsedTime = currentTime - startTime;
-            const animationSpeedFactor = 3; // Ускорение для демо
+            const animationSpeedFactor = 3; 
             const effectiveDuration = duration / animationSpeedFactor;
             const animationDurationMs = Math.max(effectiveDuration, 5) * 1000;
-            const progress = Math.min(elapsedTime / animationDurationMs, 1);
             
-            // Текущая дистанция и точка на маршруте
-            const currentDistance = routeDistance * progress;
-            const currentPoint = turf.along(routeLine, currentDistance, { units: 'kilometers' });
+            let progress = elapsedTime / animationDurationMs;
+            if (progress > 1) progress = 1;
 
-            // Определение направления (bearing)
-            let targetBearing;
-            // Смотрим на 10 метров вперед, чтобы определить направление
-            const lookAheadDistance = Math.min(currentDistance + 0.01, routeDistance); 
+            const currentDistance = routeDistance * progress;
+            const currentPointFeature = turf.along(routeLine, currentDistance, { units: 'kilometers' });
+            
+            if (!currentPointFeature || !currentPointFeature.geometry) {
+                cancelAnimationFrame(animationFrameId);
+                if (onComplete) onComplete();
+                return;
+            }
+            const currentCoords = currentPointFeature.geometry.coordinates;
+
+            let targetBearing = lastBearing;
+            const lookAheadDistance = Math.min(currentDistance + 0.015, routeDistance); // 15m lookahead
             if (lookAheadDistance > currentDistance) {
-                const lookAheadPoint = turf.along(routeLine, lookAheadDistance, { units: 'kilometers' });
-                targetBearing = turf.bearing(currentPoint, lookAheadPoint);
-            } else {
-                targetBearing = lastBearing; // В самом конце маршрута сохраняем последнее направление
+                const lookAheadPointFeature = turf.along(routeLine, lookAheadDistance, { units: 'kilometers' });
+                if (lookAheadPointFeature) {
+                     const newBearing = turf.bearing(currentPointFeature, lookAheadPointFeature);
+                     if (!isNaN(newBearing)) {
+                        targetBearing = newBearing;
+                     }
+                }
             }
             
-            // Сглаживаем поворот маркера
             lastBearing = lerpAngle(lastBearing, targetBearing, 0.1);
 
-            // Обновляем маркер
-            driverMarker.setLngLat(currentPoint.geometry.coordinates);
-            driverMarker.getElement().style.transform = `rotate(${lastBearing}deg)`;
+            if (driverMarker) {
+                driverMarker.setLngLat(currentCoords);
+                driverMarker.getElement().style.transform = `rotate(${lastBearing}deg)`;
+            }
             
             const etaMinutes = Math.ceil(((1 - progress) * effectiveDuration) / 60);
             driverEtaEl.textContent = etaMinutes > 0 ? `Прибытие через ${etaMinutes} мин` : 'Прибыли';
             
-            if (tripPhase === 'dropoff') {
-                userMarker.setLngLat(currentPoint.geometry.coordinates);
-                map.setCenter(currentPoint.geometry.coordinates);
+            if (tripPhase === 'dropoff' && userMarker) {
+                userMarker.setLngLat(currentCoords);
+                map.panTo(currentCoords);
             }
             
             if (progress >= 1) {
-                if(onComplete) onComplete();
+                if (onComplete) onComplete();
                 return;
             }
+
             animationFrameId = requestAnimationFrame(animate);
         }
         animationFrameId = requestAnimationFrame(animate);
@@ -624,7 +636,12 @@
     function loadTripHistory() {
         tg.CloudStorage.getItem('trip_history', (err, value) => {
             if (value) {
-                tripHistory = JSON.parse(value);
+                try {
+                    tripHistory = JSON.parse(value);
+                } catch(e) {
+                    console.error("Failed to parse trip history:", e);
+                    tripHistory = [];
+                }
             }
         });
     }
@@ -654,7 +671,14 @@
             `).join('');
 
         listEl.querySelectorAll('[data-route]').forEach(el => {
-            el.addEventListener('click', () => showHistoryRoute(JSON.parse(el.dataset.route)));
+            el.addEventListener('click', (e) => {
+                try {
+                    const route = JSON.parse(e.currentTarget.dataset.route);
+                    if (route) showHistoryRoute(route);
+                } catch (err) {
+                    console.error("Failed to parse history route", err);
+                }
+            });
         });
     }
     
@@ -703,7 +727,7 @@
         resetRatingStars();
         if (userLocation) {
             map.flyTo({ center: userLocation, zoom: 15 });
-            userMarker.setLngLat(userLocation);
+            if (userMarker) userMarker.setLngLat(userLocation);
         }
         switchState('addressSelection');
     }
@@ -729,13 +753,8 @@
         star.addEventListener('click', () => {
             selectedRating = parseInt(star.dataset.rating);
             ratingStars.forEach(s => {
-                if (parseInt(s.dataset.rating) <= selectedRating) {
-                    s.classList.add('selected');
-                    s.style.color = '#fbbf24';
-                } else {
-                    s.classList.remove('selected');
-                    s.style.color = '';
-                }
+                s.classList.toggle('selected', parseInt(s.dataset.rating) <= selectedRating);
+                s.style.color = parseInt(s.dataset.rating) <= selectedRating ? '#fbbf24' : '';
             });
             const trip = tripHistory.find(t => t.id === currentTripId);
             if (trip) {
@@ -749,7 +768,7 @@
     // --- START ---
     initializeMap();
 </script>
-<script src='https://npmcdn.com/@turf/turf/turf.min.js'></script>
+<script src="https://unpkg.com/@turf/turf@6.5.0/turf.min.js"></script>
 <script src="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-geocoder/v5.0.0/mapbox-gl-geocoder.min.js"></script>
 <link rel="stylesheet" href="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-geocoder/v5.0.0/mapbox-gl-geocoder.css" type="text/css">
 </body>
