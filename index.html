@@ -270,7 +270,6 @@
                 userMarker = new mapboxgl.Marker(userMarkerEl).setLngLat(userLocation).addTo(map);
                 map.flyTo({ center: userLocation, zoom: 15 });
                 
-                // Reverse geocode to get address string
                 fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${userLocation[0]},${userLocation[1]}.json?access_token=${MAPBOX_ACCESS_TOKEN}&language=ru`)
                   .then(response => response.json())
                   .then(data => {
@@ -299,7 +298,6 @@
     function closeModal() {
         document.querySelectorAll('.modal-content.active').forEach(m => m.classList.remove('active'));
         modalOverlay.classList.remove('active');
-        // Clear old history route if exists
         if (map.getLayer('history-route')) {
             map.removeLayer('history-route');
             map.removeSource('history-route');
@@ -312,7 +310,6 @@
         tg.HapticFeedback.impactOccurred('medium');
         switchState('searching');
         startCancellationTimer();
-        // Simulate finding a driver after timer ends or sooner
         findDriverTimeout = setTimeout(startTripSimulation, 60000);
     });
 
@@ -347,19 +344,15 @@
         driverMarkerEl.className = 'driver-marker';
         driverMarker = new mapboxgl.Marker(driverMarkerEl).setLngLat(driverStartLocation).addTo(map);
 
-        // Phase 1: Driver goes to user
         tripStatusText.textContent = 'Водитель подъезжает';
-        getRouteAndAnimate(driverStartLocation, userLocation, 'pickup', (routeGeoJSON) => {
-            // Phase 2: Driver waits
+        getRouteAndAnimate(driverStartLocation, userLocation, 'pickup', () => {
             tripStatusText.textContent = 'Водитель ожидает';
             driverEtaEl.textContent = 'Пожалуйста, выходите';
             tg.HapticFeedback.notificationOccurred('success');
             
             setTimeout(() => {
-                // Phase 3: Trip to destination
                 tripStatusText.textContent = 'В пути';
                 getRouteAndAnimate(userLocation, destinationLocation, 'dropoff', (finalRouteGeoJSON) => {
-                    // Phase 4: Trip finished
                     switchState('finished');
                     saveTripToHistory({
                         from: fromAddressText,
@@ -368,7 +361,7 @@
                         route: finalRouteGeoJSON
                     });
                     tg.HapticFeedback.notificationOccurred('success');
-                    driverMarker.remove();
+                    if(driverMarker) driverMarker.remove();
                 });
             }, 5000); // 5 sec wait
         });
@@ -397,43 +390,67 @@
         animateMarkerAlongRoute(route, duration, () => onComplete(geojson), tripPhase);
     }
     
+    // --- THIS FUNCTION IS REWRITTEN ---
     function animateMarkerAlongRoute(route, duration, onComplete, tripPhase) {
-        if (animationFrameId) cancelAnimationFrame(animationFrameId);
+        if (animationFrameId) {
+            cancelAnimationFrame(animationFrameId);
+        }
+
+        const routeLine = turf.lineString(route);
+        const routeDistance = turf.length(routeLine);
         let startTime = performance.now();
 
         function animate(currentTime) {
-            const progress = (currentTime - startTime) / (duration * 1000);
-            if (progress >= 1) {
-                driverMarker.setLngLat(route[route.length - 1]);
-                if (onComplete) onComplete();
-                return;
-            }
+            // Calculate how much time has passed
+            const elapsedTime = currentTime - startTime;
+            
+            // The total duration of the animation, ensuring it's not too fast
+            const animationDuration = Math.max(duration, 5) * 1000; 
 
-            const currentPoint = turf.along(turf.lineString(route), turf.length(turf.lineString(route)) * progress).geometry.coordinates;
+            // Calculate progress as a value from 0 to 1
+            const progress = Math.min(elapsedTime / animationDuration, 1);
+
+            // Get the coordinates of the point along the route that corresponds to the current progress
+            const currentPoint = turf.along(routeLine, routeDistance * progress).geometry.coordinates;
             driverMarker.setLngLat(currentPoint);
 
-            const nextIndex = Math.min(route.length - 1, Math.floor(progress * (route.length -1)) + 1);
-            const bearing = turf.bearing(turf.point(currentPoint), turf.point(route[nextIndex]));
-            driverMarker.getElement().style.transform = `rotate(${bearing}deg)`;
+            // Rotate marker to face the direction of travel
+            if (progress < 1) {
+                const nextPointIndex = Math.floor(progress * (route.length - 1)) + 1;
+                const nextPoint = route[Math.min(nextPointIndex, route.length - 1)];
+                const bearing = turf.bearing(turf.point(currentPoint), turf.point(nextPoint));
+                driverMarker.getElement().style.transform = `rotate(${bearing}deg)`;
+            }
 
-            const remainingDuration = Math.max(0, duration * (1 - progress));
+            // Update ETA
+            const remainingDuration = (1 - progress) * duration;
             const etaMinutes = Math.ceil(remainingDuration / 60);
             driverEtaEl.textContent = `Прибытие через ${etaMinutes} мин`;
             
+            // During the dropoff phase, move the user marker and center the map on the car
             if (tripPhase === 'dropoff') {
                 userMarker.setLngLat(currentPoint);
                 map.setCenter(currentPoint);
             }
             
+            // If the animation is complete, call the callback and stop the loop
+            if (progress >= 1) {
+                if(onComplete) onComplete();
+                return;
+            }
+
+            // Request the next frame of the animation
             animationFrameId = requestAnimationFrame(animate);
         }
+        
+        // Start the animation loop
         animationFrameId = requestAnimationFrame(animate);
     }
     
     // --- HISTORY & PROFILE ---
     function saveTripToHistory(trip) {
-        tripHistory.unshift(trip); // Add to beginning
-        if (tripHistory.length > 20) tripHistory.pop(); // Keep last 20 trips
+        tripHistory.unshift(trip);
+        if (tripHistory.length > 20) tripHistory.pop();
         localStorage.setItem('taxiTripHistory', JSON.stringify(tripHistory));
     }
     
@@ -445,7 +462,7 @@
             return;
         }
 
-        tripHistory.forEach((trip, index) => {
+        tripHistory.forEach((trip) => {
             const item = document.createElement('div');
             item.className = 'bg-gray-100 p-3 rounded-lg cursor-pointer hover:bg-gray-200';
             item.innerHTML = `
@@ -460,15 +477,8 @@
     
     function showHistoryRoute(routeGeoJSON) {
         closeModal();
-        // Clean up current trip view if any
-        if (map.getLayer('route')) {
-             map.removeLayer('route');
-             map.removeSource('route');
-        }
-        if (map.getLayer('history-route')) {
-             map.removeLayer('history-route');
-             map.removeSource('history-route');
-        }
+        if (map.getLayer('route')) { map.removeLayer('route'); map.removeSource('route'); }
+        if (map.getLayer('history-route')) { map.removeLayer('history-route'); map.removeSource('history-route'); }
 
         map.addSource('history-route', { type: 'geojson', data: routeGeoJSON });
         map.addLayer({
