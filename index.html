@@ -190,6 +190,7 @@
     const KOZMODEMYANSK_COORDS = [46.5700, 56.3333];
     const BASE_PRICE = 100;
     const PRICE_PER_KM = 10;
+    const ANIMATION_SPEED_FACTOR = 4; // Ускорение анимации для демо (4x)
 
     const FAKE_DRIVERS = [
         { name: 'Алексей', model: 'Toyota Camry', color: 'Черный' },
@@ -209,7 +210,6 @@
     const driverEtaEl = document.getElementById('driver-eta');
     const driverInfoEl = document.getElementById('driver-info');
     const carInfoEl = document.getElementById('car-info');
-    const callDriverBtn = document.getElementById('call-driver-btn');
     const callDriverContainer = document.getElementById('call-driver-container');
     const finalPriceEl = document.getElementById('final-price');
     const estimatedTimeEl = document.getElementById('estimated-time');
@@ -351,7 +351,7 @@
         tripInfoDiv.classList.remove('hidden');
 
         const geojson = { type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: data.geometry.coordinates } };
-        addRouteLayer('estimated-route', geojson, '#9ca3af', 4, 0.5); 
+        addRouteLayer('estimated-route', geojson, '#9ca3af', 4, 0.5, [2,2]); 
 
         const bounds = data.geometry.coordinates.reduce((b, coord) => b.extend(coord), new mapboxgl.LngLatBounds());
         map.fitBounds(bounds, { padding: {top: 40, bottom: 250, left: 40, right: 40} });
@@ -374,17 +374,19 @@
         }
     }
 
-    function addRouteLayer(id, geojson, color, width, opacity, dasharray = [2, 2]) {
+    function addRouteLayer(id, geojson, color, width, opacity, dasharray = [1, 0]) {
         removeRouteLayer(id);
-        map.addSource(id, { type: 'geojson', data: geojson });
-        map.addLayer({ id, type: 'line', source: id, 
-            layout: { 'line-join': 'round', 'line-cap': 'round' }, 
-            paint: { 'line-color': color, 'line-width': width, 'line-opacity': opacity, 'line-dasharray': dasharray }
-        });
+        if (map.isStyleLoaded()) {
+            map.addSource(id, { type: 'geojson', data: geojson });
+            map.addLayer({ id, type: 'line', source: id, 
+                layout: { 'line-join': 'round', 'line-cap': 'round' }, 
+                paint: { 'line-color': color, 'line-width': width, 'line-opacity': opacity, 'line-dasharray': dasharray }
+            });
+        }
     }
 
     function removeRouteLayer(id) {
-        if(map.isStyleLoaded()) {
+        if(map && map.isStyleLoaded()) {
             if (map.getLayer(id)) map.removeLayer(id);
             if (map.getSource(id)) map.removeSource(id);
         }
@@ -543,13 +545,14 @@
         const duration = routeData.duration;
         const geojson = { type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: route } };
 
-        addRouteLayer('route', geojson, 'var(--tg-accent-color, #3887be)', 5, 0.75, [1, 0]);
+        addRouteLayer('trip-route', geojson, 'var(--tg-accent-color, #3887be)', 5, 0.85);
         
         const bounds = route.reduce((b, coord) => b.extend(coord), new mapboxgl.LngLatBounds(start, end));
-        map.fitBounds(bounds, { padding: {top: 40, bottom: 250, left: 40, right: 40}, duration: 1000 });
+        map.fitBounds(bounds, { padding: {top: 50, bottom: 260, left: 50, right: 50}, duration: 1000 });
         
-        // Start animation ONLY after successful route fetch and validation
-        animateMarkerAlongRoute(route, duration, () => onComplete(geojson), tripPhase);
+        setTimeout(() => {
+             animateMarkerAlongRoute(route, duration, () => onComplete(geojson), tripPhase);
+        }, 1000); // Wait for map to zoom before starting animation
     }
     
     function animateMarkerAlongRoute(route, duration, onComplete, tripPhase) {
@@ -560,12 +563,11 @@
 
         function animate(currentTime) {
             const elapsedTime = currentTime - startTime;
-            const progress = Math.min(elapsedTime / (duration * 1000 / 3), 1); // Speed up for demo
+            const progress = Math.min(elapsedTime / (duration * 1000 / ANIMATION_SPEED_FACTOR), 1);
 
             const currentPoint = turf.along(routeLine, routeDistance * progress, { units: 'kilometers' });
             const currentCoords = currentPoint.geometry.coordinates;
 
-            // Look ahead for bearing calculation
             const lookAheadPoint = turf.along(routeLine, routeDistance * Math.min(progress + 0.001, 1), { units: 'kilometers' });
             const bearing = turf.bearing(currentPoint, lookAheadPoint);
             
@@ -578,7 +580,8 @@
                 driverMarker.setRotation(lastBearing);
             }
             
-            const etaMinutes = Math.ceil(((1 - progress) * duration) / 60 / 3);
+            const etaSeconds = (1 - progress) * duration / ANIMATION_SPEED_FACTOR;
+            const etaMinutes = Math.ceil(etaSeconds / 60);
             driverEtaEl.textContent = etaMinutes > 0 ? `Прибытие через ${etaMinutes} мин` : 'Прибыли';
             
             if (tripPhase === 'dropoff' && userMarker) {
@@ -587,7 +590,6 @@
             }
             
             if (progress >= 1) {
-                cancelAnimationFrame(animationFrameId);
                 if (onComplete) onComplete();
                 return;
             }
@@ -595,7 +597,6 @@
             animationFrameId = requestAnimationFrame(animate);
         }
         
-        // Cancel any previous animation and start the new one
         if (animationFrameId) cancelAnimationFrame(animationFrameId);
         animationFrameId = requestAnimationFrame(animate);
     }
@@ -644,8 +645,8 @@
     
     function showHistoryRoute(routeGeoJSON) {
         closeModal();
-        removeRouteLayer('route'); removeRouteLayer('history-route');
-        addRouteLayer('history-route', routeGeoJSON, '#9ca3af', 5, 0.8, [1, 0]);
+        removeRouteLayer('trip-route'); removeRouteLayer('history-route');
+        addRouteLayer('history-route', routeGeoJSON, '#9ca3af', 5, 0.8);
         const bounds = routeGeoJSON.geometry.coordinates.reduce((b, c) => b.extend(c), new mapboxgl.LngLatBounds());
         map.fitBounds(bounds, { padding: 80 });
     }
@@ -674,7 +675,7 @@
     // --- UTILITIES & RESET ---
     function resetAppToSelection() {
         if (animationFrameId) cancelAnimationFrame(animationFrameId);
-        removeRouteLayer('route');
+        removeRouteLayer('trip-route'); removeRouteLayer('estimated-route');
         if (driverMarker) { driverMarker.remove(); driverMarker = null; }
         if(geocoder) geocoder.clear();
         
