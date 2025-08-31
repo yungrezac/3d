@@ -5,14 +5,26 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Такси Козьмодемьянск</title>
     
+    <!-- Mapbox GL JS and CSS -->
     <script src='https://api.mapbox.com/mapbox-gl-js/v3.4.0/mapbox-gl.js'></script>
     <link href='https://api.mapbox.com/mapbox-gl-js/v3.4.0/mapbox-gl.css' rel='stylesheet' />
+    
+    <!-- Telegram Web App Script -->
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    
+    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     
+    <!-- Plugin Scripts (MUST be loaded before the main app script) -->
+    <script src="https://unpkg.com/@turf/turf@6.5.0/turf.min.js"></script>
+    <script src="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-geocoder/v5.0.0/mapbox-gl-geocoder.min.js"></script>
+    <link rel="stylesheet" href="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-geocoder/v5.0.0/mapbox-gl-geocoder.css" type="text/css">
+
     <style>
         :root {
             --tg-bg-color: #ffffff;
@@ -30,6 +42,8 @@
             height: 100vh; width: 100vw;
             background-color: var(--tg-bg-color);
             color: var(--tg-text-color);
+            margin: 0;
+            padding: 0;
         }
         #map { position: absolute; top: 0; bottom: 0; width: 100%; }
         .mapboxgl-ctrl-geocoder--logo { display: none !important; }
@@ -65,6 +79,14 @@
         }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
         
+        #loader {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background-color: var(--tg-bg-color);
+            color: var(--tg-text-color);
+            display: flex; align-items: center; justify-content: center;
+            z-index: 100; font-size: 1.2rem;
+        }
+
         .modal-overlay {
             position: fixed; top: 0; left: 0; right: 0; bottom: 0;
             background-color: rgba(0, 0, 0, 0.5);
@@ -94,7 +116,7 @@
     </style>
 </head>
 <body>
-
+    <div id="loader">Загрузка карты...</div>
     <div id="map"></div>
 
     <div id="history-btn" class="absolute top-4 left-4 rounded-full p-3 shadow-lg cursor-pointer z-10" style="background-color: var(--tg-bg-color);">
@@ -186,11 +208,12 @@
 
 <script type="module">
     // --- CONFIGURATION ---
-    const MAPBOX_ACCESS_TOKEN = 'pk.eyJ1IjoieXVuZ3JlemFjIiwiYSI6ImNtOW10ZzJ6bDBjNHUyanI3ejc5eXo1d2MifQ._tryk9cXjfReUGLGnNkm6Q'; // Replace with your token
+    // IMPORTANT: Make sure your Mapbox access token is correct.
+    const MAPBOX_ACCESS_TOKEN = 'pk.eyJ1IjoieXVuZ3JlemFjIiwiYSI6ImNtOW10ZzJ6bDBjNHUyanI3ejc5eXo1d2MifQ._tryk9cXjfReUGLGnNkm6Q'; 
     const KOZMODEMYANSK_COORDS = [46.5700, 56.3333];
     const BASE_PRICE = 100;
     const PRICE_PER_KM = 10;
-    const ANIMATION_SPEED_FACTOR = 4; // Ускорение анимации для демо (4x)
+    const ANIMATION_SPEED_FACTOR = 4; // Animation speed multiplier for demo
 
     const FAKE_DRIVERS = [
         { name: 'Алексей', model: 'Toyota Camry', color: 'Черный' },
@@ -201,6 +224,7 @@
     ];
 
     // --- DOM ELEMENTS ---
+    const loader = document.getElementById('loader');
     const historyBtn = document.getElementById('history-btn');
     const profileBtn = document.getElementById('profile-btn');
     const modalOverlay = document.getElementById('modal-overlay');
@@ -252,24 +276,36 @@
     tg.onEvent('themeChanged', applyTheme);
     tg.onEvent('backButtonClicked', closeModal);
     tg.onEvent('mainButtonClicked', onMainButtonClick);
-
-    tg.ready();
-    tg.expand();
-    applyTheme();
-    updateMainButton();
-    loadTripHistory();
-
+    
     // --- MAP & UI INITIALIZATION ---
     function initializeMap() {
+        if (!mapboxgl) {
+            loader.textContent = "Ошибка: не удалось загрузить Mapbox GL JS.";
+            return;
+        }
         mapboxgl.accessToken = MAPBOX_ACCESS_TOKEN;
-        map = new mapboxgl.Map({
-            container: 'map', style: 'mapbox://styles/mapbox/streets-v12',
-            center: KOZMODEMYANSK_COORDS, zoom: 13, pitch: 20
-        });
-        map.on('load', () => {
-            initializeGeocoder();
-            setupUserLocation();
-        });
+        
+        try {
+            map = new mapboxgl.Map({
+                container: 'map', style: 'mapbox://styles/mapbox/streets-v12',
+                center: KOZMODEMYANSK_COORDS, zoom: 13, pitch: 20
+            });
+
+            map.on('load', () => {
+                loader.style.display = 'none'; // Hide loader on successful map load
+                initializeGeocoder();
+                setupUserLocation();
+            });
+
+            map.on('error', (e) => {
+                console.error("Mapbox error:", e);
+                loader.textContent = "Не удалось загрузить карту. Проверьте ключ доступа и интернет-соединение.";
+            });
+
+        } catch (error) {
+            console.error("Failed to initialize map:", error);
+            loader.textContent = "Критическая ошибка при инициализации карты.";
+        }
     }
 
     function initializeGeocoder() {
@@ -334,24 +370,22 @@
     // --- ROUTE ESTIMATION ---
     async function showEstimatedRouteAndInfo() {
         if (!userLocation || !destinationLocation) return;
-
         const data = await getRouteData(userLocation, destinationLocation);
         if (!data) {
             tg.showAlert('Не удалось рассчитать маршрут. Попробуйте другой адрес.');
             return;
         }
-
-        estimatedDuration = data.duration / 60; // minutes
-        estimatedDistance = data.distance / 1000; // km
+        estimatedDuration = data.duration / 60;
+        estimatedDistance = data.distance / 1000;
         calculatedPrice = Math.round(BASE_PRICE + PRICE_PER_KM * estimatedDistance);
 
-        estimatedTimeEl.textContent = `Время в пути: ${Math.ceil(estimatedDuration)} мин`;
+        estimatedTimeEl.textContent = `Время в пути: ~${Math.ceil(estimatedDuration)} мин`;
         estimatedDistanceEl.textContent = `Расстояние: ${estimatedDistance.toFixed(1)} км`;
         estimatedPriceEl.textContent = `Стоимость: ${calculatedPrice}₽`;
         tripInfoDiv.classList.remove('hidden');
 
         const geojson = { type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: data.geometry.coordinates } };
-        addRouteLayer('estimated-route', geojson, '#9ca3af', 4, 0.5, [2,2]); 
+        addRouteLayer('estimated-route', geojson, '#9ca3af', 4, 0.6, [2,2]); 
 
         const bounds = data.geometry.coordinates.reduce((b, coord) => b.extend(coord), new mapboxgl.LngLatBounds());
         map.fitBounds(bounds, { padding: {top: 40, bottom: 250, left: 40, right: 40} });
@@ -363,9 +397,7 @@
         try {
             const res = await fetch(url);
             const data = await res.json();
-            if (data.routes && data.routes.length > 0) {
-                return data.routes[0];
-            }
+            if (data.routes && data.routes.length > 0) return data.routes[0];
             console.error('No routes found in API response');
             return null;
         } catch (error) {
@@ -375,8 +407,8 @@
     }
 
     function addRouteLayer(id, geojson, color, width, opacity, dasharray = [1, 0]) {
-        removeRouteLayer(id);
-        if (map.isStyleLoaded()) {
+        if (map && map.isStyleLoaded()) {
+            removeRouteLayer(id);
             map.addSource(id, { type: 'geojson', data: geojson });
             map.addLayer({ id, type: 'line', source: id, 
                 layout: { 'line-join': 'round', 'line-cap': 'round' }, 
@@ -460,7 +492,6 @@
         let timeLeft = 60;
         const updateTimerText = () => tg.MainButton.setText(`Отменить (${timeLeft}с)`);
         updateTimerText();
-
         cancelTimerInterval = setInterval(() => {
             timeLeft--;
             updateTimerText();
@@ -488,12 +519,11 @@
         const driverStartLocation = getRandomNearbyLocation(userLocation);
         const el = document.createElement('div');
         el.className = 'driver-marker';
-        driverMarker = new mapboxgl.Marker(el).setLngLat(driverStartLocation).addTo(map);
+        driverMarker = new mapboxgl.Marker({element: el, anchor: 'center'}).setLngLat(driverStartLocation).addTo(map);
 
         tripStatusText.textContent = 'Водитель подъезжает';
         
-        // --- Start animation flow ---
-        getRouteAndAnimate(driverStartLocation, userLocation, 'pickup', () => {
+        getRouteAndAnimate(driverStartLocation, userLocation, 'pickup', (pickupRouteGeoJSON) => {
             tripStatusText.textContent = 'Водитель ожидает';
             driverEtaEl.textContent = 'Пожалуйста, выходите';
             tg.HapticFeedback.notificationOccurred('success');
@@ -501,7 +531,7 @@
             setTimeout(() => {
                 tripStatusText.textContent = 'В пути';
                 callDriverContainer.style.display = 'none';
-                getRouteAndAnimate(userLocation, destinationLocation, 'dropoff', (finalRouteGeoJSON) => {
+                getRouteAndAnimate(userLocation, destinationLocation, 'dropoff', (dropoffRouteGeoJSON) => {
                     switchState('finished');
                     finalPriceEl.textContent = `${calculatedPrice}₽ наличными`;
                     currentTripId = Date.now();
@@ -509,7 +539,7 @@
                         id: currentTripId,
                         from: fromAddressText, to: toAddressText,
                         driver: `${driver.name} • ${driver.model}, ${plate}`, color: driver.color,
-                        route: finalRouteGeoJSON, date: new Date().toLocaleString('ru-RU'),
+                        route: dropoffRouteGeoJSON, date: new Date().toLocaleString('ru-RU'),
                         distance: estimatedDistance.toFixed(1), duration: Math.ceil(estimatedDuration), price: calculatedPrice,
                         rating: 0
                     });
@@ -530,9 +560,7 @@
 
     // --- MAP ROUTING & ANIMATION ---
     async function getRouteAndAnimate(start, end, tripPhase, onComplete) {
-        if (animationFrameId) {
-            cancelAnimationFrame(animationFrameId);
-        }
+        if (animationFrameId) cancelAnimationFrame(animationFrameId);
 
         const routeData = await getRouteData(start, end);
         if (!routeData || !routeData.geometry || !routeData.geometry.coordinates || routeData.geometry.coordinates.length < 2) {
@@ -552,15 +580,14 @@
         
         setTimeout(() => {
              animateMarkerAlongRoute(route, duration, () => onComplete(geojson), tripPhase);
-        }, 1000); // Wait for map to zoom before starting animation
+        }, 1000);
     }
     
     function animateMarkerAlongRoute(route, duration, onComplete, tripPhase) {
         const routeLine = turf.lineString(route);
         const routeDistance = turf.length(routeLine, { units: 'kilometers' });
         let startTime = performance.now();
-        let lastBearing = turf.bearing(turf.point(route[0]), turf.point(route[1]));
-
+        
         function animate(currentTime) {
             const elapsedTime = currentTime - startTime;
             const progress = Math.min(elapsedTime / (duration * 1000 / ANIMATION_SPEED_FACTOR), 1);
@@ -570,14 +597,10 @@
 
             const lookAheadPoint = turf.along(routeLine, routeDistance * Math.min(progress + 0.001, 1), { units: 'kilometers' });
             const bearing = turf.bearing(currentPoint, lookAheadPoint);
-            
-            if(!isNaN(bearing)) {
-                lastBearing = bearing;
-            }
 
             if (driverMarker) {
                 driverMarker.setLngLat(currentCoords);
-                driverMarker.setRotation(lastBearing);
+                if (!isNaN(bearing)) driverMarker.setRotation(bearing);
             }
             
             const etaSeconds = (1 - progress) * duration / ANIMATION_SPEED_FACTOR;
@@ -604,9 +627,7 @@
     // --- HISTORY, PROFILE & MODALS ---
     function loadTripHistory() {
         tg.CloudStorage.getItem('trip_history', (err, value) => {
-            if (value) {
-                try { tripHistory = JSON.parse(value); } catch(e) { tripHistory = []; }
-            }
+            if (value) try { tripHistory = JSON.parse(value); } catch(e) { tripHistory = []; }
         });
     }
     
@@ -678,7 +699,6 @@
         removeRouteLayer('trip-route'); removeRouteLayer('estimated-route');
         if (driverMarker) { driverMarker.remove(); driverMarker = null; }
         if(geocoder) geocoder.clear();
-        
         destinationLocation = null;
         tripInfoDiv.classList.add('hidden');
         callDriverContainer.style.display = 'flex';
@@ -724,12 +744,15 @@
         });
     });
 
-    // --- START ---
-    initializeMap();
+    // --- INITIALIZE THE APP ---
+    document.addEventListener('DOMContentLoaded', () => {
+        tg.ready();
+        tg.expand();
+        applyTheme();
+        updateMainButton();
+        loadTripHistory();
+        initializeMap();
+    });
 </script>
-<script src="https://unpkg.com/@turf/turf@6.5.0/turf.min.js"></script>
-<script src="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-geocoder/v5.0.0/mapbox-gl-geocoder.min.js"></script>
-<link rel="stylesheet" href="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-geocoder/v5.0.0/mapbox-gl-geocoder.css" type="text/css">
 </body>
 </html>
-
