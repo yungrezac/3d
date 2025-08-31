@@ -44,7 +44,8 @@
             background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="white" width="24px" height="24px"><path d="M0 0h24v24H0z" fill="none"/><path d="M18.92 6.01C18.72 5.42 18.16 5 17.5 5h-11C5.84 5 5.28 5.42 5.08 6.01L3 12v8c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h12v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-8l-2.08-5.99zM6.5 16c-.83 0-1.5-.67-1.5-1.5S5.67 13 6.5 13s1.5.67 1.5 1.5S7.33 16 6.5 16zm11 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zM5 11l1.5-4.5h11L19 11H5z"/></svg>');
             background-size: 60%; background-position: center; background-repeat: no-repeat;
             background-color: #2a2a2a; border-radius: 50%;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.4); transition: transform 0.3s ease-out;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.4); 
+            /* Убрали transition, так как transform будет управляться через JS для плавности */
         }
         .mapboxgl-ctrl-geocoder, .mapboxgl-ctrl-geocoder--input {
             background-color: var(--tg-secondary-bg-color);
@@ -134,14 +135,14 @@
         <div id="trip-state" class="hidden pb-16">
             <div class="flex items-center">
                 <div class="w-16 h-16 rounded-full flex items-center justify-center mr-4 flex-shrink-0" style="background-color: var(--tg-secondary-bg-color);">
-                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-8 h-8" style="color: var(--tg-text-color);"><path d="M0 0h24v24H0z" fill="none"/><path d="M18.92 6.01C18.72 5.42 18.16 5 17.5 5h-11C5.84 5 5.28 5.42 5.08 6.01L3 12v8c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h12v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-8l-2.08-5.99zM6.5 16c-.83 0-1.5-.67-1.5-1.5S5.67 13 6.5 13s1.5.67 1.5 1.5S7.33 16 6.5 16zm11 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zM5 11l1.5-4.5h11L19 11H5z"/></svg>
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-8 h-8" style="color: var(--tg-text-color);"><path d="M0 0h24v24H0z" fill="none"/><path d="M18.92 6.01C18.72 5.42 18.16 5 17.5 5h-11C5.84 5 5.28 5.42 5.08 6.01L3 12v8c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h12v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-8l-2.08-5.99zM6.5 16c-.83 0-1.5-.67-1.5-1.5S5.67 13 6.5 13s1.5.67 1.5 1.5S7.33 16 6.5 16zm11 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zM5 11l1.5-4.5h11L19 11H5z"/></svg>
                 </div>
                 <div>
                     <p id="trip-status-text" class="text-lg font-bold" style="color: var(--tg-text-color);">Водитель подъезжает</p>
                     <p id="driver-eta" style="color: var(--tg-hint-color);">Прибытие через 3 мин</p>
                 </div>
             </div>
-             <div class="mt-3 p-3 rounded-xl" style="background-color: var(--tg-secondary-bg-color);">
+              <div class="mt-3 p-3 rounded-xl" style="background-color: var(--tg-secondary-bg-color);">
                 <p id="driver-info" class="font-semibold" style="color: var(--tg-text-color);">Toyota Camry, A123BC</p>
                 <p id="car-info" class="text-sm" style="color: var(--tg-hint-color);">Черный цвет</p>
             </div>
@@ -235,6 +236,7 @@
     let estimatedDuration = 0, estimatedDistance = 0, calculatedPrice = 0;
     let currentTripId = null;
     let selectedRating = 0;
+    let lastBearing = 0; // Переменная для хранения последнего угла поворота маркера водителя
 
     // --- TELEGRAM SDK INITIALIZATION ---
     const tg = window.Telegram.WebApp;
@@ -354,7 +356,7 @@
 
     async function getRouteData(start, end) {
         const url = `https://api.mapbox.com/directions/v5/mapbox/driving/${start.join(',')};${end.join(',')}` +
-                    `?steps=true&geometries=geojson&access_token=${mapboxgl.accessToken}`;
+                      `?steps=true&geometries=geojson&access_token=${mapboxgl.accessToken}`;
         try {
             const res = await fetch(url);
             const data = await res.json();
@@ -533,47 +535,80 @@
         const duration = routeData.duration; // seconds
         const geojson = { type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: route } };
 
-        addRouteLayer('route', geojson, var(--tg-accent-color || '#3887be'), 5, 0.75, [1, 0]); // Solid line
+        addRouteLayer('route', geojson, 'var(--tg-accent-color, #3887be)', 5, 0.75, [1, 0]); // Solid line
         
         const bounds = route.reduce((b, coord) => b.extend(coord), new mapboxgl.LngLatBounds(start, end));
         map.fitBounds(bounds, { padding: 80, duration: 1000 });
         animateMarkerAlongRoute(route, duration, () => onComplete(geojson), tripPhase);
     }
     
+    /**
+     * @description УЛУЧШЕННАЯ ФУНКЦИЯ АНИМАЦИИ
+     * Эта функция была полностью переписана для обеспечения плавной анимации.
+     * 1.  Использует `turf.js` для точного позиционирования маркера вдоль линии маршрута.
+     * 2.  Для плавного поворота, направление (`bearing`) рассчитывается не к следующей точке из массива,
+     * а к точке, находящейся на небольшом расстоянии впереди по линии маршрута. Это позволяет
+     * маркеру "смотреть" вдоль дороги, а не на следующую вершину ломаной линии.
+     * 3.  Угол поворота сглаживается с помощью линейной интерполяции (`lerpAngle`),
+     * чтобы избежать резких рывков при смене направления, особенно на крутых поворотах.
+     * 4.  Анимация синхронизирована с `requestAnimationFrame` для максимальной производительности.
+     */
     function animateMarkerAlongRoute(route, duration, onComplete, tripPhase) {
         if (animationFrameId) cancelAnimationFrame(animationFrameId);
 
         const routeLine = turf.lineString(route);
-        const routeDistance = turf.length(routeLine);
+        const routeDistance = turf.length(routeLine, { units: 'kilometers' });
         let startTime = performance.now();
+        
+        // Функция для сглаживания угла поворота (линейная интерполяция)
+        function lerpAngle(start, end, amount) {
+            let difference = Math.abs(end - start);
+            if (difference > 180) {
+                if (end > start) {
+                    start += 360;
+                } else {
+                    end += 360;
+                }
+            }
+            let value = (start + ((end - start) * amount));
+            return (value % 360 + 360) % 360;
+        }
 
         function animate(currentTime) {
             const elapsedTime = currentTime - startTime;
-            const animationSpeedFactor = 3; // Adjusted for better demo experience
+            const animationSpeedFactor = 3; // Ускорение для демо
             const effectiveDuration = duration / animationSpeedFactor;
             const animationDurationMs = Math.max(effectiveDuration, 5) * 1000;
             const progress = Math.min(elapsedTime / animationDurationMs, 1);
-            const currentPoint = turf.along(routeLine, routeDistance * progress).geometry.coordinates;
             
-            driverMarker.setLngLat(currentPoint);
+            // Текущая дистанция и точка на маршруте
+            const currentDistance = routeDistance * progress;
+            const currentPoint = turf.along(routeLine, currentDistance, { units: 'kilometers' });
 
-            if (progress < 1 && route.length > 1) {
-                let nextPointIndex = Math.floor(progress * (route.length - 1)) + 1;
-                nextPointIndex = Math.min(nextPointIndex, route.length - 1);
-                const nextPoint = route[nextPointIndex];
-                let bearing = turf.bearing(turf.point(currentPoint), turf.point(nextPoint));
-                if (isNaN(bearing) || !isFinite(bearing)) {
-                    bearing = 0;
-                }
-                driverMarker.getElement().style.transform = `rotate(${bearing}deg)`;
+            // Определение направления (bearing)
+            let targetBearing;
+            // Смотрим на 10 метров вперед, чтобы определить направление
+            const lookAheadDistance = Math.min(currentDistance + 0.01, routeDistance); 
+            if (lookAheadDistance > currentDistance) {
+                const lookAheadPoint = turf.along(routeLine, lookAheadDistance, { units: 'kilometers' });
+                targetBearing = turf.bearing(currentPoint, lookAheadPoint);
+            } else {
+                targetBearing = lastBearing; // В самом конце маршрута сохраняем последнее направление
             }
+            
+            // Сглаживаем поворот маркера
+            lastBearing = lerpAngle(lastBearing, targetBearing, 0.1);
+
+            // Обновляем маркер
+            driverMarker.setLngLat(currentPoint.geometry.coordinates);
+            driverMarker.getElement().style.transform = `rotate(${lastBearing}deg)`;
             
             const etaMinutes = Math.ceil(((1 - progress) * effectiveDuration) / 60);
             driverEtaEl.textContent = etaMinutes > 0 ? `Прибытие через ${etaMinutes} мин` : 'Прибыли';
             
             if (tripPhase === 'dropoff') {
-                userMarker.setLngLat(currentPoint);
-                map.setCenter(currentPoint);
+                userMarker.setLngLat(currentPoint.geometry.coordinates);
+                map.setCenter(currentPoint.geometry.coordinates);
             }
             
             if (progress >= 1) {
@@ -666,8 +701,10 @@
         tripInfoDiv.classList.add('hidden');
         callDriverContainer.style.display = 'flex';
         resetRatingStars();
-        map.flyTo({ center: userLocation || KOZMODEMYANSK_COORDS, zoom: 15 });
-        userMarker.setLngLat(userLocation);
+        if (userLocation) {
+            map.flyTo({ center: userLocation, zoom: 15 });
+            userMarker.setLngLat(userLocation);
+        }
         switchState('addressSelection');
     }
 
