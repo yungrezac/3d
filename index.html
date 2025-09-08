@@ -2,349 +2,187 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>Такси Mini App</title>
     
+    <!-- Скрипт Tailwind CSS для стилизации -->
     <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Стили и скрипт Mapbox GL JS для карты -->
     <link href='https://api.mapbox.com/mapbox-gl-js/v3.4.0/mapbox-gl.css' rel='stylesheet' />
     <script src='https://api.mapbox.com/mapbox-gl-js/v3.4.0/mapbox-gl.js'></script>
+    
+    <!-- Скрипт для иконок Lucide -->
     <script src="https://unpkg.com/lucide@latest"></script>
+
+    <!-- Скрипт Telegram Web App для интеграции с Telegram -->
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
 
     <style>
-        body { overscroll-behavior: none; }
+        /* Дополнительные стили для плавности и корректного отображения */
+        body {
+            overscroll-behavior: none;
+        }
         #bottom-sheet {
-            touch-action: none;
+            touch-action: none; /* Отключаем стандартные действия браузера при касании */
             transition: transform 0.3s ease-in-out;
-            transform: translateY(calc(100% - 180px)); /* Initial state */
         }
-        .mapboxgl-ctrl-geolocate, .mapboxgl-ctrl-compass { display: none !important; }
-        .center-marker {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -100%);
-            pointer-events: none;
-            z-index: 5;
+        /* Убираем стрелочки у инпутов с типом number */
+        input[type="number"]::-webkit-inner-spin-button,
+        input[type="number"]::-webkit-outer-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
         }
-        .pulse {
-            animation: pulse-animation 2s infinite;
-        }
-        @keyframes pulse-animation {
-            0% { box-shadow: 0 0 0 0 rgba(0, 123, 255, 0.7); }
-            70% { box-shadow: 0 0 0 20px rgba(0, 123, 255, 0); }
-            100% { box-shadow: 0 0 0 0 rgba(0, 123, 255, 0); }
+        input[type="number"] {
+            -moz-appearance: textfield;
         }
     </style>
 </head>
-<body class="overflow-hidden antialiased font-sans">
+<body class="overflow-hidden">
 
     <div class="relative h-screen w-screen">
-        <!-- Map Container -->
+        <!-- Контейнер для карты, он будет на заднем плане -->
         <div id="map" class="absolute inset-0"></div>
-        
-        <!-- Center Marker -->
-        <div id="center-marker" class="center-marker hidden">
-            <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#007BFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
-        </div>
 
-        <!-- My Location Button -->
-        <button id="my-location-btn" class="absolute top-5 right-5 z-10 bg-white p-3 rounded-full shadow-md">
-            <i data-lucide="locate-fixed" class="w-6 h-6 text-gray-700"></i>
-        </button>
-
-        <!-- Bottom Sheet -->
-        <div id="bottom-sheet" class="absolute bottom-0 left-0 right-0 bg-white rounded-t-2xl shadow-2xl p-4 flex flex-col z-10">
-            <div id="sheet-handle" class="w-12 h-1.5 bg-gray-300 rounded-full mx-auto mb-3 cursor-grab active:cursor-grabbing"></div>
-
-            <!-- VIEW 1: Initial Address Input -->
-            <div id="view-address-input">
-                <h2 class="text-xl font-bold text-gray-800 text-center mb-4">Куда поедем?</h2>
-                <div class="space-y-3">
-                    <div class="relative flex items-center">
-                         <i data-lucide="circle" class="absolute left-3 text-blue-500 w-5 h-5"></i>
-                         <input type="text" id="from-address" placeholder="Откуда" class="w-full bg-gray-100 rounded-lg pl-10 pr-4 py-3 focus:outline-none ring-2 ring-transparent focus:ring-blue-500">
-                    </div>
-                    <div class="relative flex items-center">
-                        <i data-lucide="map-pin" class="absolute left-3 text-gray-400 w-5 h-5"></i>
-                        <input type="text" id="to-address" placeholder="Куда" class="w-full bg-gray-100 rounded-lg pl-10 pr-4 py-3 focus:outline-none ring-2 ring-transparent focus:ring-blue-500">
-                    </div>
-                </div>
-                 <button id="confirm-address-btn" class="w-full bg-gray-800 text-white font-bold py-3 rounded-lg mt-4 hover:bg-gray-900 transition-colors disabled:opacity-50" disabled>
-                    Далее
-                </button>
-            </div>
-
-            <!-- VIEW 2: Confirm Ride Details -->
-            <div id="view-confirm-ride" class="hidden">
-                 <div class="flex justify-between items-center mb-3">
-                    <h2 class="text-xl font-bold text-gray-800">Подтверждение</h2>
-                    <button id="back-to-address-btn"><i data-lucide="x" class="w-6 h-6 text-gray-500"></i></button>
-                </div>
-                <!-- Tariff Options -->
-                <div class="flex justify-around bg-gray-100 rounded-lg p-1 mb-4">
-                     <button class="tariff-btn flex-1 p-2 rounded-md bg-white shadow" data-multiplier="1">
-                        <span class="font-bold">Эконом</span> <span class="text-sm" id="price-economy"></span>
-                    </button>
-                    <button class="tariff-btn flex-1 p-2 rounded-md" data-multiplier="1.5">
-                        <span class="font-bold">Комфорт</span> <span class="text-sm" id="price-comfort"></span>
-                    </button>
-                    <button class="tariff-btn flex-1 p-2 rounded-md" data-multiplier="2.5">
-                        <span class="font-bold">Бизнес</span> <span class="text-sm" id="price-business"></span>
-                    </button>
-                </div>
-                <button id="order-ride-btn" class="w-full bg-blue-600 text-white font-bold py-3.5 rounded-lg hover:bg-blue-700 transition-colors">
-                    Заказать
-                </button>
-            </div>
+        <!-- Модальное окно (Bottom Sheet), которое выдвигается снизу -->
+        <div id="bottom-sheet" class="absolute bottom-0 left-0 right-0 bg-white rounded-t-2xl shadow-2xl p-4 flex flex-col z-10" style="transform: translateY(calc(100% - 280px));">
             
-            <!-- VIEW 3: Searching for Driver -->
-            <div id="view-searching" class="hidden text-center py-8">
-                <div class="w-16 h-16 bg-blue-500 rounded-full mx-auto mb-4 flex items-center justify-center pulse">
-                    <i data-lucide="car" class="w-8 h-8 text-white"></i>
+            <!-- "Ручка" для управления окном -->
+            <div id="sheet-handle" class="w-12 h-1.5 bg-gray-300 rounded-full mx-auto mb-4 cursor-grab active:cursor-grabbing"></div>
+
+            <!-- Заголовок -->
+            <h2 class="text-2xl font-bold text-gray-800 text-center mb-4">Куда поедем?</h2>
+
+            <!-- Форма для ввода адресов -->
+            <div class="space-y-3">
+                <!-- Поле "Откуда" -->
+                <div class="relative flex items-center">
+                    <div class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
+                        <i data-lucide="circle" class="w-5 h-5"></i>
+                    </div>
+                    <input type="text" placeholder="Откуда" class="w-full bg-gray-100 border-transparent rounded-lg pl-10 pr-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500">
                 </div>
-                <h2 class="text-xl font-bold text-gray-800">Ищем водителя...</h2>
-                <p class="text-gray-500">Это может занять некоторое время</p>
-                 <button id="cancel-search-btn" class="w-full bg-gray-200 text-gray-800 font-bold py-3 rounded-lg mt-6 hover:bg-gray-300 transition-colors">
-                    Отменить
-                </button>
+
+                <!-- Поле "Куда" -->
+                <div class="relative flex items-center">
+                    <div class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
+                        <i data-lucide="map-pin" class="w-5 h-5"></i>
+                    </div>
+                    <input type="text" placeholder="Куда" class="w-full bg-gray-100 border-transparent rounded-lg pl-10 pr-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
             </div>
 
+            <!-- Кнопка заказа -->
+            <button id="order-button" class="w-full bg-blue-600 text-white font-bold py-3.5 rounded-lg mt-5 hover:bg-blue-700 active:bg-blue-800 transition-colors">
+                Заказать такси
+            </button>
         </div>
     </div>
 
     <script>
         document.addEventListener('DOMContentLoaded', function () {
-            // --- App State ---
-            const AppState = {
-                CHOOSING_PICKUP: 'CHOOSING_PICKUP',
-                CHOOSING_DESTINATION: 'CHOOSING_DESTINATION',
-                CONFIRMING_RIDE: 'CONFIRMING_RIDE',
-                SEARCHING: 'SEARCHING',
-            };
-            let currentState = AppState.CHOOSING_PICKUP;
-            let fromCoords, toCoords;
-            let isDragging = false;
-            let selectedTariffMultiplier = 1;
-
-            // --- DOM Elements ---
-            const fromAddressInput = document.getElementById('from-address');
-            const toAddressInput = document.getElementById('to-address');
-            const confirmAddressBtn = document.getElementById('confirm-address-btn');
-            const centerMarker = document.getElementById('center-marker');
-            const bottomSheet = document.getElementById('bottom-sheet');
-            
-            const viewAddressInput = document.getElementById('view-address-input');
-            const viewConfirmRide = document.getElementById('view-confirm-ride');
-            const viewSearching = document.getElementById('view-searching');
-
-            // --- Telegram Web App Init ---
-            const tg = window.Telegram ? window.Telegram.WebApp : null;
-            if (tg) {
-                tg.ready();
-                tg.expand();
-            }
-
-            // --- Mapbox Init ---
-            mapboxgl.accessToken = 'pk.eyJ1IjoieXVuZ3JlemFjIiwiYSI6ImNtOW10ZzJ6bDBjNHUyanI3ejc5eXo1d2MifQ._tryk9cXjfReUGLGnNkm6Q';
-            const map = new mapboxgl.Map({
-                container: 'map',
-                style: 'mapbox://styles/mapbox/streets-v12',
-                center: [37.6173, 55.7558],
-                zoom: 11,
-                attributionControl: false
-            });
-            
-            const geolocate = new mapboxgl.GeolocateControl({
-                positionOptions: { enableHighAccuracy: true },
-                trackUserLocation: true,
-                showUserHeading: true
-            });
-            map.addControl(geolocate);
-
-            map.on('load', () => {
-                geolocate.trigger(); // Automatically get user location on load
-                 updateUI();
-            });
-
-            // --- UI Update Logic ---
-            function updateUI() {
-                // Hide all views
-                [viewAddressInput, viewConfirmRide, viewSearching].forEach(v => v.classList.add('hidden'));
-                centerMarker.classList.add('hidden');
-
-                switch (currentState) {
-                    case AppState.CHOOSING_PICKUP:
-                        viewAddressInput.classList.remove('hidden');
-                        centerMarker.classList.remove('hidden');
-                        fromAddressInput.classList.add('focus:ring-blue-500');
-                        toAddressInput.classList.remove('focus:ring-blue-500');
-                        setBottomSheetHeight('180px');
-                        break;
-                    case AppState.CHOOSING_DESTINATION:
-                        viewAddressInput.classList.remove('hidden');
-                        centerMarker.classList.remove('hidden');
-                        fromAddressInput.classList.remove('focus:ring-blue-500');
-                        toAddressInput.classList.add('focus:ring-blue-500');
-                        setBottomSheetHeight('180px');
-                        break;
-                    case AppState.CONFIRMING_RIDE:
-                        viewConfirmRide.classList.remove('hidden');
-                        setBottomSheetHeight('200px');
-                        break;
-                    case AppState.SEARCHING:
-                        viewSearching.classList.remove('hidden');
-                         setBottomSheetHeight('250px');
-                        break;
+            try {
+                // --- Инициализация Telegram Mini App ---
+                // Проверяем, доступен ли объект Telegram Web App
+                const tg = window.Telegram ? window.Telegram.WebApp : null;
+                if (tg) {
+                    tg.ready(); // Сообщаем Telegram, что приложение готово
+                    tg.expand(); // Растягиваем приложение на весь экран
                 }
-            }
-            
-            function setBottomSheetHeight(height) {
-                bottomSheet.style.transform = `translateY(calc(100% - ${height}))`;
-            }
 
-            // --- Map & Geocoding Logic ---
-            const fetchAddress = async (coords) => {
-                const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${coords.lng},${coords.lat}.json?access_token=${mapboxgl.accessToken}&language=ru`;
-                try {
-                    const response = await fetch(url);
-                    const data = await response.json();
-                    return data.features[0] ? data.features[0].place_name : 'Не удалось определить адрес';
-                } catch (error) {
-                    console.error("Geocoding error:", error);
-                    return 'Ошибка определения адреса';
-                }
-            };
-            
-            const updateAddressFromMapCenter = async () => {
-                if (isDragging) return;
-                const center = map.getCenter();
-                const address = await fetchAddress(center);
-                if (currentState === AppState.CHOOSING_PICKUP) {
-                    fromAddressInput.value = address;
-                    fromCoords = center;
-                } else if (currentState === AppState.CHOOSING_DESTINATION) {
-                    toAddressInput.value = address;
-                    toCoords = center;
-                }
-                 checkIfCanConfirm();
-            };
-            
-            function checkIfCanConfirm() {
-                confirmAddressBtn.disabled = !(fromCoords && toCoords);
-            }
-
-            map.on('dragstart', () => isDragging = true);
-            map.on('dragend', () => { isDragging = false; updateAddressFromMapCenter(); });
-            map.on('moveend', () => { if(!isDragging) updateAddressFromMapCenter(); });
-            
-            geolocate.on('geolocate', (e) => {
-                const coords = { lng: e.coords.longitude, lat: e.coords.latitude };
-                if (currentState === AppState.CHOOSING_PICKUP) {
-                    fromCoords = coords;
-                    fetchAddress(coords).then(addr => fromAddressInput.value = addr);
-                    map.flyTo({ center: coords, zoom: 15 });
-                }
-            });
-
-            // --- Route Drawing Logic ---
-            const drawRoute = (geometry) => {
-                 if (map.getSource('route')) {
-                    map.getSource('route').setData(geometry);
-                } else {
-                    map.addLayer({
-                        id: 'route',
-                        type: 'line',
-                        source: { type: 'geojson', data: geometry },
-                        layout: { 'line-join': 'round', 'line-cap': 'round' },
-                        paint: { 'line-color': '#007BFF', 'line-width': 6, 'line-opacity': 0.8 }
-                    });
-                }
-                 const coordinates = geometry.geometry.coordinates;
-                 const bounds = new mapboxgl.LngLatBounds(coordinates[0], coordinates[0]);
-                 for (const coord of coordinates) {
-                     bounds.extend(coord);
-                 }
-                 map.fitBounds(bounds, { padding: 80 });
-            };
-            
-             const clearRoute = () => {
-                if (map.getLayer('route')) map.removeLayer('route');
-                if (map.getSource('route')) map.removeSource('route');
-            };
-
-            // --- Event Listeners ---
-            document.getElementById('my-location-btn').addEventListener('click', () => geolocate.trigger());
-            
-            fromAddressInput.addEventListener('focus', () => {
-                currentState = AppState.CHOOSING_PICKUP;
-                updateUI();
-            });
-            toAddressInput.addEventListener('focus', () => {
-                currentState = AppState.CHOOSING_DESTINATION;
-                updateUI();
-            });
-
-            confirmAddressBtn.addEventListener('click', async () => {
-                currentState = AppState.CONFIRMING_RIDE;
-                updateUI();
-                
-                // Fetch and draw route
-                const url = `https://api.mapbox.com/directions/v5/mapbox/driving/${fromCoords.lng},${fromCoords.lat};${toCoords.lng},${toCoords.lat}?geometries=geojson&access_token=${mapboxgl.accessToken}`;
-                try {
-                    const response = await fetch(url);
-                    const data = await response.json();
-                    if (data.routes && data.routes.length > 0) {
-                        const route = data.routes[0];
-                        drawRoute({type: 'Feature', geometry: route.geometry});
-                        
-                        // Calculate price
-                        const distanceInKm = route.distance / 1000;
-                        const basePrice = 150 + distanceInKm * 25; // Dummy price logic
-                        
-                        document.querySelectorAll('.tariff-btn').forEach(btn => {
-                            const multiplier = parseFloat(btn.dataset.multiplier);
-                            const finalPrice = Math.round(basePrice * multiplier);
-                            btn.querySelector('span:last-child').textContent = `~${finalPrice}₽`;
-                        });
-                    }
-                } catch(error) {
-                    console.error("Directions API error:", error);
-                }
-            });
-
-            document.getElementById('back-to-address-btn').addEventListener('click', () => {
-                currentState = AppState.CHOOSING_DESTINATION;
-                clearRoute();
-                updateUI();
-                map.flyTo({ center: toCoords, zoom: 15 });
-            });
-            
-            document.querySelectorAll('.tariff-btn').forEach(btn => {
-                btn.addEventListener('click', () => {
-                    document.querySelectorAll('.tariff-btn').forEach(b => {
-                        b.classList.remove('bg-white', 'shadow');
-                    });
-                    btn.classList.add('bg-white', 'shadow');
-                    selectedTariffMultiplier = parseFloat(btn.dataset.multiplier);
+                // --- Инициализация карты Mapbox ---
+                mapboxgl.accessToken = 'pk.eyJ1IjoieXVuZ3JlemFjIiwiYSI6ImNtOW10ZzJ6bDBjNHUyanI3ejc5eXo1d2MifQ._tryk9cXjfReUGLGnNkm6Q';
+                const map = new mapboxgl.Map({
+                    container: 'map', // ID контейнера
+                    style: 'mapbox://styles/mapbox/streets-v12', // Стиль карты
+                    center: [37.6173, 55.7558], // Начальные координаты [lng, lat] (Москва)
+                    zoom: 11, // Начальный зум
+                    attributionControl: false // Отключаем логотип с атрибуцией для чистоты интерфейса
                 });
-            });
+                
+                map.addControl(new mapboxgl.NavigationControl(), 'top-right');
 
-            document.getElementById('order-ride-btn').addEventListener('click', () => {
-                currentState = AppState.SEARCHING;
-                updateUI();
-                // TODO: Here you will call Supabase backend to create an order
-                console.log('Order created! Tariff multiplier:', selectedTariffMultiplier);
-            });
-            
-            document.getElementById('cancel-search-btn').addEventListener('click', () => {
-                currentState = AppState.CONFIRMING_RIDE;
-                updateUI();
-                // TODO: Call Supabase to cancel the search
-            });
 
-            // --- Init Icons ---
-            lucide.createIcons();
+                // --- Логика управления модальным окном (Bottom Sheet) ---
+                const bottomSheet = document.getElementById('bottom-sheet');
+                const sheetHandle = document.getElementById('sheet-handle');
+
+                // Определяем высоты для состояний окна
+                const sheetPartialViewY = `calc(100% - 280px)`; // Частично видимо
+                const sheetFullViewY = `20px`; // Полностью открыто
+
+                let isSheetOpen = false;
+                let startY, startHeight;
+
+                // Функция для переключения состояния окна
+                const toggleSheet = () => {
+                    isSheetOpen = !isSheetOpen;
+                    bottomSheet.style.transform = `translateY(${isSheetOpen ? sheetFullViewY : sheetPartialViewY})`;
+                };
+                
+                // Переключаем по клику на "ручку"
+                sheetHandle.addEventListener('click', toggleSheet);
+                
+                // Логика перетаскивания
+                const onTouchStart = (e) => {
+                    startY = e.touches[0].clientY;
+                    bottomSheet.style.transition = 'none'; // Отключаем анимацию во время перетаскивания
+                };
+
+                const onTouchMove = (e) => {
+                    const currentY = e.touches[0].clientY;
+                    const diffY = currentY - startY;
+                    
+                    // Рассчитываем новую позицию
+                    const targetY = isSheetOpen 
+                        ? Math.max(20, 20 + diffY) 
+                        : Math.max(20, window.innerHeight - 280 + diffY);
+
+                    bottomSheet.style.transform = `translateY(${targetY}px)`;
+                };
+
+                const onTouchEnd = (e) => {
+                    bottomSheet.style.transition = 'transform 0.3s ease-in-out';
+                    const currentTransformY = new WebKitCSSMatrix(window.getComputedStyle(bottomSheet).transform).m42;
+                    const halfwayPoint = window.innerHeight / 2;
+
+                    // Если отпустили выше середины - открываем полностью, иначе - сворачиваем
+                    if (currentTransformY < halfwayPoint) {
+                        isSheetOpen = true;
+                        bottomSheet.style.transform = `translateY(${sheetFullViewY})`;
+                    } else {
+                        isSheetOpen = false;
+                        bottomSheet.style.transform = `translateY(${sheetPartialViewY})`;
+                    }
+                };
+                
+                sheetHandle.addEventListener('touchstart', onTouchStart, { passive: true });
+                sheetHandle.addEventListener('touchmove', onTouchMove, { passive: true });
+                sheetHandle.addEventListener('touchend', onTouchEnd);
+
+
+                // --- Инициализация иконок Lucide ---
+                lucide.createIcons();
+
+                // --- Обработка клика на кнопку заказа ---
+                const orderButton = document.getElementById('order-button');
+                orderButton.addEventListener('click', () => {
+                    // Показываем всплывающее уведомление Telegram, если доступно
+                    if (tg) {
+                        tg.showPopup({
+                            title: 'Заказ принят!',
+                            message: 'Машина скоро будет. Детали заказа появятся здесь.',
+                            buttons: [{ type: 'ok', text: 'Понятно' }]
+                        });
+                    } else {
+                        // Фоллбэк для обычного браузера
+                        console.log('Заказ принят! (Это сообщение для отладки, т.к. приложение открыто не в Telegram)');
+                    }
+                });
+            } catch (error) {
+                console.error("Произошла ошибка при инициализации приложения:", error);
+                // Это поможет увидеть более детальную ошибку в консоли разработчика
+            }
         });
     </script>
 </body>
