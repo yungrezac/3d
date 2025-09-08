@@ -29,43 +29,39 @@
 </head>
 <body class="bg-gray-100">
 
+    <!-- Глобальный загрузчик -->
     <div id="global-loader" class="fixed inset-0 bg-white/80 backdrop-blur-sm flex flex-col justify-center items-center z-50 p-4">
         <div class="loader"></div>
         <p id="loader-text" class="mt-4 text-gray-600">Подключаемся...</p>
     </div>
 
+    <!-- Основной контейнер приложения -->
     <div id="app-container" class="relative h-screen w-screen hidden">
         <div id="map" class="absolute inset-0"></div>
 
-        <!-- Passenger UI -->
+        <!-- Интерфейс Пассажира -->
         <div id="passenger-screen" class="hidden">
-            <div id="bottom-sheet" class="bottom-sheet absolute bottom-0 left-0 right-0 bg-white rounded-t-2xl shadow-2xl p-4 flex flex-col z-10" style="transform: translateY(calc(100% - 290px));">
+            <div id="bottom-sheet" class="bottom-sheet absolute bottom-0 left-0 right-0 bg-white rounded-t-2xl shadow-2xl p-4 flex flex-col z-10" style="transform: translateY(calc(100% - 300px));">
                 <div id="sheet-handle" class="w-12 h-1.5 bg-gray-300 rounded-full mx-auto mb-4 cursor-grab"></div>
                 <div id="sheet-content">
-                    <!-- Order State -->
+                    <!-- Состояние: Форма заказа -->
                     <div id="order-form-state">
                         <h2 class="text-2xl font-bold text-gray-800 text-center mb-4">Куда поедем?</h2>
-                        <div class="space-y-3">
-                            <div id="from-geocoder"></div>
-                            <div id="to-geocoder"></div>
-                        </div>
+                        <div class="space-y-3"><div id="from-geocoder"></div><div id="to-geocoder"></div></div>
                         <button id="order-button" class="w-full bg-blue-600 text-white font-bold py-3.5 rounded-lg mt-5 transition-all disabled:bg-gray-400">Выберите адрес</button>
                     </div>
-                    <!-- Searching State -->
+                    <!-- Состояние: Поиск машины -->
                     <div id="searching-state" class="hidden text-center py-8">
                         <div class="loader mx-auto"></div>
                         <h3 class="text-xl font-semibold mt-4">Ищем машину...</h3>
                         <button id="cancel-search-button" class="w-full bg-red-600 text-white font-bold py-3.5 rounded-lg mt-6">Отменить поиск</button>
                     </div>
-                    <!-- Active Ride State -->
+                    <!-- Состояние: Поездка активна -->
                     <div id="driver-found-state" class="hidden">
-                         <h2 class="text-2xl font-bold text-gray-800 text-center mb-2">Водитель в пути!</h2>
+                         <h2 id="ride-title" class="text-2xl font-bold text-gray-800 text-center mb-2">Водитель в пути!</h2>
                          <div class="bg-gray-100 p-3 rounded-lg flex items-center space-x-4">
                              <img id="driver-avatar" src="https://placehold.co/60x60/E2E8F0/A0AEC0?text=A" class="w-14 h-14 rounded-full">
-                             <div>
-                                 <p id="driver-name" class="font-bold text-lg">Водитель</p>
-                                 <p id="driver-car" class="text-gray-600">Машина</p>
-                             </div>
+                             <div><p id="driver-name" class="font-bold text-lg">Водитель</p><p id="driver-car" class="text-gray-600">Машина</p></div>
                              <div class="flex-grow text-right"><p id="driver-car-plate" class="font-mono bg-white border border-gray-300 px-2 py-1 rounded">A123BC</p></div>
                          </div>
                          <div class="mt-4 text-center"><p id="ride-status-passenger" class="text-lg font-medium text-blue-600">Водитель едет к вам</p></div>
@@ -74,25 +70,28 @@
             </div>
         </div>
 
-        <!-- Driver UI -->
-        <div id="driver-screen" class="hidden w-full h-full flex flex-col p-4 bg-white z-20 absolute inset-0">
-            <div class="flex justify-between items-center mb-4">
-                <h1 class="text-2xl font-bold">Заказы</h1>
-                <div class="flex items-center space-x-2">
-                    <span id="driver-status-text" class="text-gray-600 font-medium">Офлайн</span>
-                    <label class="relative inline-flex items-center cursor-pointer"><input type="checkbox" id="driver-status-toggle" class="sr-only peer"><div class="w-11 h-6 bg-gray-200 rounded-full peer peer-checked:after:translate-x-full after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div></label>
+        <!-- Интерфейс Водителя -->
+        <div id="driver-screen" class="hidden w-full h-full flex flex-col z-20 absolute inset-0">
+             <!-- Верхняя панель -->
+            <div class="bg-white p-4">
+                 <div class="flex justify-between items-center">
+                    <h1 class="text-2xl font-bold">Заказы</h1>
+                    <div class="flex items-center space-x-2">
+                        <span id="driver-status-text" class="text-gray-600 font-medium">Офлайн</span>
+                        <label class="relative inline-flex items-center cursor-pointer"><input type="checkbox" id="driver-status-toggle" class="sr-only peer"><div class="w-11 h-6 bg-gray-200 rounded-full peer peer-checked:after:translate-x-full after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div></label>
+                    </div>
                 </div>
             </div>
-            <!-- Driver Active Ride -->
-            <div id="active-ride-driver" class="hidden border-2 border-blue-500 rounded-lg p-4 mb-4">
+            <!-- Активный заказ -->
+            <div id="active-ride-driver" class="hidden p-4 bg-white border-t border-b">
                 <h2 class="text-xl font-bold mb-2">Активный заказ</h2>
-                <div class="space-y-2"><p><strong>Откуда:</strong> <span id="active-ride-from"></span></p><p><strong>Куда:</strong> <span id="active-ride-to"></span></p><p><strong>Стоимость:</strong> <span id="active-ride-fare" class="font-bold"></span> руб.</p></div>
+                <div class="space-y-2 text-sm"><p><strong>Откуда:</strong> <span id="active-ride-from"></span></p><p><strong>Куда:</strong> <span id="active-ride-to"></span></p><p><strong>Стоимость:</strong> <span id="active-ride-fare" class="font-bold"></span> руб.</p></div>
                 <div id="driver-action-buttons" class="mt-4 space-y-2"></div>
             </div>
-            <!-- Driver Orders List -->
-            <div id="available-orders-container" class="flex-grow flex flex-col">
-                <h2 id="available-orders-title" class="text-xl font-bold mb-2">Доступные заказы</h2>
-                <div id="orders-list" class="flex-grow overflow-y-auto space-y-3 pb-4">
+            <!-- Список доступных заказов -->
+            <div id="available-orders-container" class="flex-grow flex flex-col bg-white">
+                <h2 id="available-orders-title" class="text-xl font-bold px-4 pt-4">Доступные заказы</h2>
+                <div id="orders-list" class="flex-grow overflow-y-auto space-y-3 p-4">
                     <div id="no-orders-placeholder" class="text-center py-10 text-gray-500"><i data-lucide="inbox" class="w-12 h-12 mx-auto"></i><p class="mt-2">Нет доступных заказов</p></div>
                 </div>
             </div>
@@ -101,13 +100,13 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', () => {
-    // --- Constants & Config ---
+    // --- Константы и конфигурация ---
     const SUPABASE_URL = 'https://skoobtvzeojdmvjsexdm.supabase.co';
     const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNrb29idHZ6ZW9qZG12anNleGRtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTcyMTI5MjksImV4cCI6MjA3Mjc4ODkyOX0.3rtdGA9o07WUV8pKZctK4pA6VJyaUjn5MeZR-bigzP8';
-    const MAPBOX_TOKEN = 'pk.eyJ1IjoieXVuZ3JlemFjIiwiYSI6ImNtOW10ZzJ6bDBjNHUyanI3ejc5eXo1d2MifQ._tryk_ReUGLGnNkm6Q';
-    const FARE_CONFIG = { base: 150, perKm: 25, perMin: 10 };
+    const MAPBOX_TOKEN = 'pk.eyJ1IjoieXVuZ3JlemFjIiwiYSI6ImNtOW10ZzJ6bDBjNHUyanI3ejc5eXo1d2MifQ._tryk9cXjfReUGLGnNkm6Q';
+    const FARE_CONFIG = { base: 150, perKm: 25, perMin: 10 }; // Базовая цена, цена за км, цена за минуту
 
-    // --- App State ---
+    // --- Глобальное состояние приложения ---
     let supabaseClient, tg, map, currentUser;
     let fromCoords, toCoords, fromAddress, toAddress;
     let fromMarker, toMarker, driverMarker;
@@ -115,47 +114,100 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentRideId = null;
     let driverCurrentLocation = null;
 
-    // --- Main Initialization ---
+    // --- Основная функция инициализации ---
     async function main() {
         try {
-            console.log("App starting...");
+            console.log("Приложение запускается...");
             tg = window.Telegram?.WebApp;
-            if (!tg || !tg.initData) return showError("Запустите приложение внутри Telegram.", true);
-            tg.ready(); tg.expand();
+            if (!tg || !tg.initData) {
+                return showError("Пожалуйста, запустите приложение внутри Telegram.", true);
+            }
+            tg.ready(); 
+            tg.expand();
 
             supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
             mapboxgl.accessToken = MAPBOX_TOKEN;
             
             showLoader("Авторизация...");
             const tgUser = tg.initDataUnsafe.user;
-            if (!tgUser) return showError("Не удалось получить данные Telegram.", true);
+            if (!tgUser) return showError("Не удалось получить данные пользователя Telegram.", true);
+
             currentUser = await getOrCreateUser(tgUser);
-            if (!currentUser) return;
+            if (!currentUser) return; // Ошибка уже показана внутри функции
 
             showLoader("Получение геолокации...");
             const userLocation = await getCurrentLocation();
             initializeMap(userLocation);
 
-            if (currentUser.role === 'driver') await setupDriverScreen();
-            else await setupPassengerScreen(userLocation);
+            // Определение роли и запуск соответствующего интерфейса
+            if (currentUser.role === 'driver') {
+                await setupDriverScreen();
+            } else {
+                await setupPassengerScreen(userLocation);
+            }
 
             hideLoader();
             lucide.createIcons();
-            console.log("App initialized.");
+            console.log("Приложение успешно инициализировано.");
         } catch (error) {
-            console.error("Критическая ошибка:", error);
+            console.error("Критическая ошибка при инициализации:", error);
             showError(`Критическая ошибка: ${error.message}`, true);
         }
     }
 
-    // --- User & Auth ---
-    async function getOrCreateUser(tgUser) { /* ... no changes ... */ }
+    // --- Пользователь и Авторизация ---
+    async function getOrCreateUser(tgUser) {
+        try {
+            let { data, error } = await supabaseClient.from('user_profiles').select('*').eq('telegram_id', tgUser.id).single();
+            if (error && error.code !== 'PGRST116') throw error;
+            if (data) return data; // Пользователь найден
 
-    // --- Map & Geolocation ---
-    function initializeMap(center) { /* ... no changes ... */ }
-    function getCurrentLocation() { /* ... no changes ... */ }
+            // Создание нового пользователя, если не найден
+            const fullName = `${tgUser.first_name || ''} ${tgUser.last_name || ''}`.trim();
+            const { data: newUser, error: insertError } = await supabaseClient.from('user_profiles').insert({ 
+                id: crypto.randomUUID(), 
+                telegram_id: tgUser.id, 
+                full_name: fullName || tgUser.username || `User ${tgUser.id}`, 
+                role: 'passenger' 
+            }).select().single();
+            
+            if (insertError) throw insertError;
+            return newUser;
+        } catch (error) {
+            showError(`Ошибка авторизации: ${error.message}`);
+            return null;
+        }
+    }
 
-    // --- Passenger UI & Logic ---
+    // --- Карта и Геолокация ---
+    function initializeMap(center) {
+        map = new mapboxgl.Map({ 
+            container: 'map', 
+            style: 'mapbox://styles/mapbox/streets-v12', 
+            center: center, 
+            zoom: 14 
+        });
+        map.addControl(new mapboxgl.NavigationControl(), 'top-right');
+        map.addControl(new mapboxgl.GeolocateControl({ trackUserLocation: true }), 'top-right');
+    }
+
+    function getCurrentLocation() {
+        return new Promise((resolve) => {
+            const fallback = () => resolve([37.6173, 55.7558]); // Москва как запасной вариант
+            const success = (pos) => resolve([pos.coords.longitude, pos.coords.latitude]);
+            const error = (err) => { console.warn(`Ошибка геолокации: ${err.message}`); fallback(); };
+            
+            // Таймаут на случай, если GPS не отвечает
+            const watchId = setTimeout(fallback, 10000); 
+            navigator.geolocation.getCurrentPosition(
+                (pos) => { clearTimeout(watchId); success(pos); }, 
+                error, 
+                { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
+            );
+        });
+    }
+
+    // --- Интерфейс и логика Пассажира ---
     async function setupPassengerScreen(userLocation) {
         document.getElementById('passenger-screen').classList.remove('hidden');
         const orderButton = document.getElementById('order-button');
@@ -169,9 +221,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const toGeocoder = new MapboxGeocoder(geocoderOptions('Куда'));
         document.getElementById('to-geocoder').appendChild(toGeocoder.onAdd(map));
 
+        // Устанавливаем начальный адрес
         fromCoords = userLocation;
         fromAddress = await geocodeReverse(fromCoords);
-        fromGeocoder.setInput(fromAddress);
+        fromGeocoder.setInput(fromAddress || '');
         updateMapMarkers();
 
         fromGeocoder.on('result', (e) => { fromCoords = e.result.geometry.coordinates; fromAddress = e.result.place_name; updateMapMarkers(); calculateAndDisplayFare(); });
@@ -193,7 +246,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const data = await getDirections(fromCoords, toCoords);
         if (!data || !data.routes || data.routes.length === 0) {
-            orderButton.textContent = 'Не удалось построить маршрут';
+            orderButton.textContent = 'Маршрут не найден';
+            console.warn("Не удалось построить маршрут между точками.");
             return;
         }
         
@@ -201,7 +255,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const distanceKm = route.distance / 1000;
         const durationMin = route.duration / 60;
         const fare = FARE_CONFIG.base + (distanceKm * FARE_CONFIG.perKm) + (durationMin * FARE_CONFIG.perMin);
-        const roundedFare = Math.round(fare / 10) * 10;
+        const roundedFare = Math.ceil(fare / 10) * 10;
         
         orderButton.textContent = `Заказать за ~${roundedFare} ₽`;
         orderButton.dataset.fare = roundedFare;
@@ -211,11 +265,15 @@ document.addEventListener('DOMContentLoaded', () => {
     async function createRide() {
         switchPassengerState('searching-state');
         try {
-            const { data: ride, error } = await supabaseClient.from('rides').insert({
-                passenger_id: currentUser.id, pickup_location: fromAddress, destination_location: toAddress,
-                pickup_latitude: fromCoords[1], pickup_longitude: fromCoords[0],
-                destination_latitude: toCoords[1], destination_longitude: toCoords[0],
-                fare_amount: document.getElementById('order-button').dataset.fare
+            const { data: ride, error } = await supabaseClient.from('rides').insert({ 
+                passenger_id: currentUser.id, 
+                pickup_location: fromAddress, 
+                destination_location: toAddress, 
+                pickup_latitude: fromCoords[1], 
+                pickup_longitude: fromCoords[0], 
+                destination_latitude: toCoords[1], 
+                destination_longitude: toCoords[0], 
+                fare_amount: document.getElementById('order-button').dataset.fare 
             }).select().single();
             if (error) throw error;
             currentRideId = ride.id;
@@ -225,13 +283,19 @@ document.addEventListener('DOMContentLoaded', () => {
             tg.showAlert(`Не удалось создать заказ: ${error.message}`);
         }
     }
-    
-    // --- Driver UI & Logic ---
+
+    async function cancelRide() {
+        if (!currentRideId) return;
+        await supabaseClient.from('rides').update({ ride_status: 'cancelled' }).eq('id', currentRideId);
+        cleanupAfterRide();
+        switchPassengerState('order-form-state');
+    }
+
+    // --- Интерфейс и логика Водителя ---
     async function setupDriverScreen() {
         document.getElementById('driver-screen').classList.remove('hidden');
-        document.getElementById('map').classList.add('hidden'); // Hide main map for driver's list view
         
-        const { data: vehicle } = await supabaseClient.from('vehicles').select('id').eq('driver_id', currentUser.id).limit(1).single();
+        const { data: vehicle, error } = await supabaseClient.from('vehicles').select('id').eq('driver_id', currentUser.id).limit(1).single();
         const statusToggle = document.getElementById('driver-status-toggle');
 
         if (!vehicle) {
@@ -270,39 +334,143 @@ document.addEventListener('DOMContentLoaded', () => {
             let distanceToClient = '';
             if (driverCurrentLocation) {
                 const directions = await getDirections(driverCurrentLocation, [ride.pickup_longitude, ride.pickup_latitude]);
-                if (directions && directions.routes.length > 0) {
+                if (directions && directions.routes && directions.routes.length > 0) {
                     distanceToClient = `<p class="text-sm font-semibold text-blue-600 mt-1">До клиента: ${(directions.routes[0].distance / 1000).toFixed(1)} км</p>`;
                 }
             }
             list.insertAdjacentHTML('beforeend', `
                 <div class="bg-gray-50 border p-4 rounded-lg">
-                    <div class="flex justify-between">
-                        <div>
-                            <p class="font-semibold">${ride.pickup_location}</p>
-                            <p class="text-sm text-gray-500">${ride.destination_location}</p>
-                            ${distanceToClient}
-                        </div>
-                        <div class="text-lg font-bold text-blue-600 pl-2">${ride.fare_amount} ₽</div>
+                    <div class="flex justify-between items-start">
+                        <div class="pr-2"><p class="font-semibold">${ride.pickup_location}</p><p class="text-sm text-gray-500">${ride.destination_location}</p>${distanceToClient}</div>
+                        <div class="text-lg font-bold text-blue-600 pl-2 whitespace-nowrap">${ride.fare_amount} ₽</div>
                     </div>
                     <button data-ride-id="${ride.id}" class="accept-ride-btn mt-3 w-full bg-green-500 text-white font-bold py-2 rounded-lg">Принять</button>
                 </div>`);
         }
         document.querySelectorAll('.accept-ride-btn').forEach(b => b.onclick = acceptRide);
     }
+    
+    async function acceptRide(event) {
+        event.target.disabled = true; 
+        event.target.textContent = 'Принимаю...';
+        const rideId = event.target.dataset.rideId;
+        const { error } = await supabaseClient.from('rides').update({ driver_id: currentUser.id, ride_status: 'accepted' }).eq('id', rideId).eq('ride_status', 'requesting');
+        if (error) {
+            tg.showAlert('Не удалось принять заказ. Возможно, его уже забрали.');
+            event.target.disabled = false;
+            event.target.textContent = 'Принять';
+        }
+    }
+    
+    async function checkActiveRide() {
+        const { data: ride } = await supabaseClient.from('rides').select('*').eq('driver_id', currentUser.id).in('ride_status', ['accepted', 'enroute', 'in_progress']).maybeSingle();
+        const isActive = !!ride;
 
-    // --- Real-time & Ride State ---
-    function subscribeToRideUpdates(rideId) { /* ... no changes ... */ }
-    async function updatePassengerRideStatus(ride) { /* ... no changes ... */ }
-    function startSendingLocation() { /* ... no changes ... */ }
-    function stopSendingLocation() { /* ... no changes ... */ }
-    function listenForDriverLocation(driverId, passengerLon, passengerLat) { /* ... no changes ... */ }
+        document.getElementById('available-orders-container').classList.toggle('hidden', isActive);
+        document.getElementById('active-ride-driver').classList.toggle('hidden', !isActive);
+        
+        // Показываем карту, если есть активный заказ у водителя
+        document.getElementById('map').classList.toggle('hidden', !isActive && currentUser.role === 'driver');
 
-    // --- Map Drawing & Utils ---
+        if (isActive) {
+            document.getElementById('active-ride-from').textContent = ride.pickup_location;
+            document.getElementById('active-ride-to').textContent = ride.destination_location;
+            document.getElementById('active-ride-fare').textContent = ride.fare_amount;
+            renderDriverActionButtons(ride);
+            
+            // Логика отрисовки маршрута для водителя
+            const passengerCoords = [ride.pickup_longitude, ride.pickup_latitude];
+            const destinationCoords = [ride.destination_longitude, ride.destination_latitude];
+
+            if (ride.ride_status === 'accepted' || ride.ride_status === 'enroute') {
+                 // Маршрут до пассажира
+                 if (driverCurrentLocation) {
+                    drawTripRoute(driverCurrentLocation, passengerCoords, 'driver-route');
+                 }
+            } else if (ride.ride_status === 'in_progress') {
+                // Маршрут до конечной точки
+                drawTripRoute(passengerCoords, destinationCoords, 'driver-route');
+            }
+        }
+    }
+
+    // --- Realtime & Ride State ---
+    function subscribeToRideUpdates(rideId) {
+        if (rideUpdateChannel) rideUpdateChannel.unsubscribe();
+        rideUpdateChannel = supabaseClient.channel(`ride-${rideId}`)
+            .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'rides', filter: `id=eq.${rideId}` }, payload => updatePassengerRideStatus(payload.new))
+            .subscribe();
+    }
+
+    async function updatePassengerRideStatus(ride) {
+        // Обновляем UI Пассажира
+        if (currentUser.role === 'passenger') {
+            const statusMap = {
+                'accepted': 'Водитель принял заказ',
+                'enroute': 'Водитель скоро будет на месте',
+                'in_progress': 'В пути к месту назначения'
+            };
+            
+            if (statusMap[ride.ride_status]) {
+                switchPassengerState('driver-found-state');
+                document.getElementById('ride-status-passenger').textContent = statusMap[ride.ride_status];
+                
+                const { data: driver } = await supabaseClient.from('user_profiles').select('full_name').eq('id', ride.driver_id).single();
+                const { data: vehicle } = await supabaseClient.from('vehicles').select('*').eq('driver_id', ride.driver_id).single();
+
+                document.getElementById('driver-name').textContent = driver?.full_name || 'Водитель';
+                document.getElementById('driver-car').textContent = vehicle ? `${vehicle.color} ${vehicle.brand} ${vehicle.model}` : 'Машина';
+                document.getElementById('driver-car-plate').textContent = vehicle?.plate_number || '...';
+                
+                listenForDriverLocation(ride.driver_id, [ride.pickup_longitude, ride.pickup_latitude]);
+            }
+
+            if (ride.ride_status === 'completed' || ride.ride_status === 'cancelled') {
+                tg.showPopup({
+                    title: ride.ride_status === 'completed' ? 'Поездка завершена!' : 'Заказ отменен',
+                    message: ride.ride_status === 'completed' ? 'Спасибо, что выбрали нас!' : 'Надеемся увидеть вас снова.',
+                    buttons: [{ type: 'ok' }]
+                });
+                cleanupAfterRide();
+                switchPassengerState('order-form-state');
+            }
+        }
+    }
+
+    function startSendingLocation() {
+        if (driverLocationWatcherId) return;
+        locationChannel = supabaseClient.channel(`driver-${currentUser.id}`);
+        locationChannel.subscribe();
+        driverLocationWatcherId = navigator.geolocation.watchPosition((pos) => {
+            driverCurrentLocation = [pos.coords.longitude, pos.coords.latitude];
+            locationChannel.send({ type: 'broadcast', event: 'location_update', payload: { lon: pos.coords.longitude, lat: pos.coords.latitude } });
+        }, console.error, { enableHighAccuracy: true });
+    }
+
+    function stopSendingLocation() {
+        if (driverLocationWatcherId) navigator.geolocation.clearWatch(driverLocationWatcherId);
+        if (locationChannel) locationChannel.unsubscribe();
+        driverLocationWatcherId = null;
+        driverCurrentLocation = null;
+    }
+
+    function listenForDriverLocation(driverId, destination) {
+        if (locationChannel) locationChannel.unsubscribe();
+        locationChannel = supabaseClient.channel(`driver-${driverId}`)
+            .on('broadcast', { event: 'location_update' }, ({ payload }) => {
+                const driverCoords = [payload.lon, payload.lat];
+                if (!driverMarker) driverMarker = createMarker('', driverCoords, true).addTo(map);
+                else driverMarker.setLngLat(driverCoords);
+                drawTripRoute(driverCoords, destination, 'driver-route');
+            }).subscribe();
+    }
+
+    // --- Map Drawing & API Helpers ---
     function updateMapMarkers() {
-        if(fromMarker) fromMarker.remove();
-        if(toMarker) toMarker.remove();
-        if(fromCoords) fromMarker = createMarker('A', fromCoords).addTo(map);
-        if(toCoords) toMarker = createMarker('Б', toCoords).addTo(map);
+        if (fromMarker) fromMarker.remove();
+        if (toMarker) toMarker.remove();
+        if (fromCoords) fromMarker = createMarker('A', fromCoords).addTo(map);
+        if (toCoords) toMarker = createMarker('Б', toCoords).addTo(map);
 
         if (fromCoords && toCoords) {
             const bounds = new mapboxgl.LngLatBounds();
@@ -312,60 +480,58 @@ document.addEventListener('DOMContentLoaded', () => {
             drawTripRoute(fromCoords, toCoords, 'trip-preview');
         }
     }
-
-    function createMarker(text, coords, isDriver = false) {
-        const el = document.createElement('div');
-        el.className = isDriver ? 'driver-marker' : 'custom-marker';
-        if (!isDriver) el.textContent = text;
-        return new mapboxgl.Marker(el).setLngLat(coords);
-    }
     
     async function drawTripRoute(start, end, routeId) {
         const data = await getDirections(start, end);
+        if (!data || !data.routes || !data.routes.length) return;
         const route = data.routes[0].geometry;
         if (map.getSource(routeId)) {
             map.getSource(routeId).setData(route);
         } else {
-            map.addLayer({ id: routeId, type: 'line', source: { type: 'geojson', data: route }, paint: { 'line-color': '#3b82f6', 'line-width': 6, 'line-opacity': 0.8 }});
+            map.addLayer({ id: routeId, type: 'line', source: { type: 'geojson', data: route }, paint: { 'line-color': '#3b82f6', 'line-width': 6, 'line-opacity': 0.8 } });
         }
     }
     
-    // --- API Helpers ---
-    async function geocodeReverse(coords) { /* ... no changes ... */ }
-    async function getDirections(start, end) {
-        const url = `https://api.mapbox.com/directions/v5/mapbox/driving/${start[0]},${start[1]};${end[0]},${end[1]}?geometries=geojson&access_token=${MAPBOX_TOKEN}`;
-        const response = await fetch(url);
-        return await response.json();
+    async function geocodeReverse(coords) {
+        try {
+            const r = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${coords[0]},${coords[1]}.json?access_token=${MAPBOX_TOKEN}`);
+            const d = await r.json();
+            return (d && d.features && d.features.length > 0) ? d.features[0].place_name : "Неизвестный адрес";
+        } catch (e) {
+            console.error("Ошибка обратного геокодирования:", e);
+            return "Ошибка определения адреса";
+        }
     }
     
-    // --- UI State Changers & Helpers ---
+    async function getDirections(start, end) {
+        try {
+            const url = `https://api.mapbox.com/directions/v5/mapbox/driving/${start[0]},${start[1]};${end[0]},${end[1]}?geometries=geojson&access_token=${MAPBOX_TOKEN}`;
+            const response = await fetch(url);
+            return response.ok ? await response.json() : null;
+        } catch (e) {
+            console.error("Ошибка API маршрутов:", e);
+            return null;
+        }
+    }
+    
+    // --- UI Helpers & Cleanup ---
     function showLoader(text) { document.getElementById('loader-text').textContent = text; document.getElementById('global-loader').classList.remove('hidden'); }
     function hideLoader() { document.getElementById('global-loader').classList.add('hidden'); document.getElementById('app-container').classList.remove('hidden'); }
     function showError(message, isCritical = false) { const loader = document.getElementById('global-loader'); loader.classList.remove('hidden'); document.getElementById('loader-text').innerHTML = `<span class="text-red-600 font-semibold text-center">${message}</span>`; if(isCritical) loader.querySelector('.loader').style.display = 'none'; }
-    function switchPassengerState(state) { /* ... no changes ... */ }
+    function switchPassengerState(state) { ['order-form-state', 'searching-state', 'driver-found-state'].forEach(id => document.getElementById(id).classList.add('hidden')); document.getElementById(state)?.classList.remove('hidden'); }
     function cleanupAfterRide() {
         if (rideUpdateChannel) rideUpdateChannel.unsubscribe();
         if (locationChannel) locationChannel.unsubscribe();
         if (driverMarker) { driverMarker.remove(); driverMarker = null; }
-        ['trip-preview', 'driver-route'].forEach(id => { if (map.getSource(id)) { map.removeLayer(id); map.removeSource(id); }});
+        if (fromMarker) { fromMarker.remove(); fromMarker = null; }
+        if (toMarker) { toMarker.remove(); toMarker = null; }
+        ['trip-preview', 'driver-route'].forEach(id => { if (map.getLayer(id)) { map.removeLayer(id); } if (map.getSource(id)) { map.removeSource(id); } });
         currentRideId = null;
     }
+    function createMarker(text, coords, isDriver = false) { const el = document.createElement('div'); el.className = isDriver ? 'driver-marker' : 'custom-marker'; if (!isDriver) el.textContent = text; return new mapboxgl.Marker(el).setLngLat(coords); }
+    function renderDriverActionButtons(ride) { const c = document.getElementById('driver-action-buttons'); c.innerHTML = ''; const u = (s) => supabaseClient.from('rides').update({ ride_status: s }).eq('id', ride.id); const a = { 'accepted': { t: 'Я на месте', f: () => u('enroute'), c: 'bg-blue-500' }, 'enroute': { t: 'Начать поездку', f: () => u('in_progress'), c: 'bg-blue-500' }, 'in_progress': { t: 'Завершить поездку', f: () => u('completed'), c: 'bg-green-500' } }; if (a[ride.ride_status]) { const { t, f, c: btnClass } = a[ride.ride_status]; c.innerHTML = `<button class="w-full text-white font-bold py-2 rounded-lg ${btnClass}">${t}</button>`; c.firstChild.onclick = f; } c.innerHTML += `<button class="w-full bg-red-500 text-white font-bold py-2 rounded-lg mt-2">Отменить</button>`; c.lastChild.onclick = () => u('cancelled'); }
     
-    // --- Stubs for unchanged functions for brevity ---
-    async function getOrCreateUser(tgUser) { try { let { data, error } = await supabaseClient.from('user_profiles').select('*').eq('telegram_id', tgUser.id).single(); if (error && error.code !== 'PGRST116') throw error; if (data) return data; const fullName = `${tgUser.first_name || ''} ${tgUser.last_name || ''}`.trim(); const { data: newUser, error: insertError } = await supabaseClient.from('user_profiles').insert({ id: crypto.randomUUID(), telegram_id: tgUser.id, full_name: fullName || tgUser.username || `User ${tgUser.id}`, role: 'passenger' }).select().single(); if (insertError) throw insertError; return newUser; } catch (error) { showError(`Ошибка авторизации: ${error.message}`); return null; } }
-    function initializeMap(center) { map = new mapboxgl.Map({ container: 'map', style: 'mapbox://styles/mapbox/streets-v12', center: center, zoom: 14 }); map.addControl(new mapboxgl.NavigationControl(), 'top-right'); map.addControl(new mapboxgl.GeolocateControl({ trackUserLocation: true }), 'top-right'); }
-    function getCurrentLocation() { return new Promise((resolve) => navigator.geolocation.getCurrentPosition((pos) => resolve([pos.coords.longitude, pos.coords.latitude]), () => resolve([37.6173, 55.7558]))); }
-    async function geocodeReverse(coords) { const r = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${coords[0]},${coords[1]}.json?access_token=${MAPBOX_TOKEN}`); const d = await r.json(); return d.features[0]?.place_name; }
-    function subscribeToRideUpdates(rideId) { if (rideUpdateChannel) rideUpdateChannel.unsubscribe(); rideUpdateChannel = supabaseClient.channel(`ride-${rideId}`).on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'rides', filter: `id=eq.${rideId}`}, payload => updatePassengerRideStatus(payload.new)).subscribe(); }
-    async function updatePassengerRideStatus(ride) { if (['accepted', 'enroute', 'in_progress'].includes(ride.ride_status)) { switchPassengerState('driver-found-state'); const { data: driver } = await supabaseClient.from('user_profiles').select('full_name').eq('id', ride.driver_id).single(); const { data: vehicle } = await supabaseClient.from('vehicles').select('*').eq('driver_id', ride.driver_id).single(); document.getElementById('driver-name').textContent = driver?.full_name || 'Водитель'; document.getElementById('driver-car').textContent = vehicle ? `${vehicle.color} ${vehicle.brand} ${vehicle.model}` : 'Машина'; document.getElementById('driver-car-plate').textContent = vehicle?.plate_number || '...'; listenForDriverLocation(ride.driver_id, ride.pickup_longitude, ride.pickup_latitude); } if (ride.ride_status === 'completed' || ride.ride_status === 'cancelled') { cleanupAfterRide(); switchPassengerState('order-form-state'); } }
-    function startSendingLocation() { if (driverLocationWatcherId) return; locationChannel = supabaseClient.channel(`driver-${currentUser.id}`); locationChannel.subscribe(); driverLocationWatcherId = navigator.geolocation.watchPosition((pos) => { driverCurrentLocation = [pos.coords.longitude, pos.coords.latitude]; locationChannel.send({ type: 'broadcast', event: 'location_update', payload: { lon: pos.coords.longitude, lat: pos.coords.latitude }}); }, console.error, { enableHighAccuracy: true }); }
-    function stopSendingLocation() { if (driverLocationWatcherId) navigator.geolocation.clearWatch(driverLocationWatcherId); if (locationChannel) locationChannel.unsubscribe(); driverLocationWatcherId = null; driverCurrentLocation = null; }
-    function listenForDriverLocation(driverId, passengerLon, passengerLat) { if (locationChannel) locationChannel.unsubscribe(); locationChannel = supabaseClient.channel(`driver-${driverId}`).on('broadcast', { event: 'location_update' }, ({ payload }) => { if (!driverMarker) driverMarker = createMarker('', [payload.lon, payload.lat], true).addTo(map); else driverMarker.setLngLat([payload.lon, payload.lat]); drawTripRoute([payload.lon, payload.lat], [passengerLon, passengerLat], 'driver-route'); }).subscribe(); }
-    async function checkActiveRide() { const { data: ride } = await supabaseClient.from('rides').select('*').eq('driver_id', currentUser.id).in('ride_status', ['accepted', 'enroute', 'in_progress']).maybeSingle(); const isActive = !!ride; document.getElementById('available-orders-container').classList.toggle('hidden', isActive); document.getElementById('active-ride-driver').classList.toggle('hidden', !isActive); if (isActive) { document.getElementById('map').classList.remove('hidden'); document.getElementById('active-ride-from').textContent = ride.pickup_location; document.getElementById('active-ride-to').textContent = ride.destination_location; document.getElementById('active-ride-fare').textContent = ride.fare_amount; renderDriverActionButtons(ride); drawTripRoute([ride.pickup_longitude, ride.pickup_latitude], [ride.destination_longitude, ride.destination_latitude], 'trip-preview'); } else { document.getElementById('map').classList.add('hidden'); } }
-    async function acceptRide(event) { /* ... no changes ... */ }
-    function renderDriverActionButtons(ride) { /* ... no changes ... */ }
-    function switchPassengerState(state) {['order-form-state', 'searching-state', 'driver-found-state'].forEach(id => document.getElementById(id).classList.add('hidden')); document.getElementById(state)?.classList.remove('hidden');}
-
+    // --- Запуск приложения ---
     main();
 });
 </script>
