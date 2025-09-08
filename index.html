@@ -1,869 +1,352 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <title>Такси Козьмодемьянск</title>
-
-    <!-- Telegram Mini Apps SDK -->
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
+    <title>Такси Mini App</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href='https://api.mapbox.com/mapbox-gl-js/v3.4.0/mapbox-gl.css' rel='stylesheet' />
+    <script src='https://api.mapbox.com/mapbox-gl-js/v3.4.0/mapbox-gl.js'></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
 
-    <!-- Mapbox GL JS -->
-    <script src="https://api.mapbox.com/mapbox-gl-js/v3.4.0/mapbox-gl.js"></script>
-    <link href="https://api.mapbox.com/mapbox-gl-js/v3.4.0/mapbox-gl.css" rel="stylesheet" />
-
-    <!-- Mapbox Geocoder Plugin -->
-    <script src="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-geocoder/v5.0.0/mapbox-gl-geocoder.min.js"></script>
-    <link rel="stylesheet" href="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-geocoder/v5.0.0/mapbox-gl-geocoder.css" type="text/css" />
-
-    <!-- Turf.js for animations -->
-    <script src="https://unpkg.com/@turf/turf@6.5.0/turf.min.js"></script>
-
-    <!-- Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com"></script>
-
-    <!-- Google Fonts -->
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
-
     <style>
-      /* :root variables will be dynamically set by JavaScript based on Telegram theme */
-      :root {
-        --tg-bg-color: #ffffff;
-        --tg-text-color: #000000;
-        --tg-hint-color: #999999;
-        --tg-button-color: #2481cc;
-        --tg-button-text-color: #ffffff;
-        --tg-secondary-bg-color: #f4f4f4;
-        --tg-accent-color: #3887be;
-      }
-      body {
-        font-family: 'Inter', sans-serif;
-        overscroll-behavior: none;
-        overflow: hidden;
-        height: 100vh;
-        width: 100vw;
-        margin: 0;
-        background-color: var(--tg-bg-color);
-        color: var(--tg-text-color);
-      }
-      #map { position: absolute; inset: 0; }
-      .mapboxgl-ctrl-geocoder--logo { display: none !important; }
-
-      /* Custom Markers */
-      .user-marker {
-        width: 20px; height: 20px; background-color: #007BFF;
-        border: 3px solid var(--tg-bg-color); border-radius: 50%;
-        box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
-      }
-      .driver-marker {
-        width: 40px; height: 40px;
-        background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="-2 -2 28 28" fill="white"><path d="M18.92 6.01C18.72 5.42 18.16 5 17.5 5h-11C5.84 5 5.28 5.42 5.08 6.01L3 12v8c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h12v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-8l-2.08-5.99z"/></svg>');
-        background-size: 60%; background-position: center; background-repeat: no-repeat;
-        background-color: #2a2a2a; border-radius: 50%;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.4);
-      }
-
-      /* Geocoder Styles */
-      .mapboxgl-ctrl-geocoder, .mapboxgl-ctrl-geocoder--input {
-        background-color: var(--tg-secondary-bg-color);
-        color: var(--tg-text-color);
-      }
-      .mapboxgl-ctrl-geocoder {
-        width: 100% !important; max-width: none !important; font-size: 1rem !important;
-        box-shadow: none !important; border-radius: 0.75rem !important; border: 1px solid var(--tg-secondary-bg-color);
-      }
-      .mapboxgl-ctrl-geocoder--input { height: 50px !important; padding-left: 40px !important; }
-      .mapboxgl-ctrl-geocoder--icon-search { top: 13px !important; left: 10px !important; }
-      .mapboxgl-ctrl-geocoder .mapboxgl-ctrl-geocoder--pin-right > * { top: 15px !important; right: 10px !important; }
-
-      /* Spinner Animation */
-      .spinner {
-        border: 4px solid rgba(0, 0, 0, 0.1); border-radius: 50%;
-        border-top: 4px solid var(--tg-text-color); width: 24px; height: 24px;
-        animation: spin 1s linear infinite;
-      }
-      @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-
-      /* Modal Styles (for sliding side panels) */
-      .modal-overlay {
-        position: fixed; inset: 0; background-color: rgba(0, 0, 0, 0.5);
-        opacity: 0; transition: opacity 0.3s ease-in-out;
-        pointer-events: none; z-index: 40;
-      }
-      .modal-overlay.active { opacity: 1; pointer-events: auto; }
-
-      .modal-content {
-        position: fixed; bottom: 0; left: 0; right: 0;
-        max-height: 80vh; background: var(--tg-bg-color); color: var(--tg-text-color);
-        border-top-left-radius: 1.5rem; border-top-right-radius: 1.5rem;
-        transform: translateY(100%); transition: transform 0.3s ease-in-out;
-        z-index: 50; padding: 1.5rem; overflow-y: auto; box-shadow: 0 -10px 30px rgba(0,0,0,0.1);
-      }
-      .modal-content.active { transform: translateY(0); }
-
-      /* Rating Stars */
-      .rating-star { cursor: pointer; transition: color 0.2s; }
-      .rating-star:hover, .rating-star.selected { color: #fbbf24; }
-      
-      /* Center Marker for "Pick on Map" mode */
-      #center-marker {
-        position: absolute;
-        top: 50%; left: 50%;
-        transform: translate(-50%, -100%); /* Position tip at center */
-        width: 40px;
-        height: 40px;
-        background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%23d94646"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>');
-        background-size: contain;
-        background-repeat: no-repeat;
-        pointer-events: none;
-        z-index: 5;
-      }
+        body { overscroll-behavior: none; }
+        #bottom-sheet {
+            touch-action: none;
+            transition: transform 0.3s ease-in-out;
+            transform: translateY(calc(100% - 180px)); /* Initial state */
+        }
+        .mapboxgl-ctrl-geolocate, .mapboxgl-ctrl-compass { display: none !important; }
+        .center-marker {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -100%);
+            pointer-events: none;
+            z-index: 5;
+        }
+        .pulse {
+            animation: pulse-animation 2s infinite;
+        }
+        @keyframes pulse-animation {
+            0% { box-shadow: 0 0 0 0 rgba(0, 123, 255, 0.7); }
+            70% { box-shadow: 0 0 0 20px rgba(0, 123, 255, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(0, 123, 255, 0); }
+        }
     </style>
 </head>
-<body>
+<body class="overflow-hidden antialiased font-sans">
 
-    <div id="map"></div>
-    
-    <!-- Marker for "Pick on Map" mode. Initially hidden. -->
-    <div id="center-marker" class="hidden"></div>
+    <div class="relative h-screen w-screen">
+        <!-- Map Container -->
+        <div id="map" class="absolute inset-0"></div>
+        
+        <!-- Center Marker -->
+        <div id="center-marker" class="center-marker hidden">
+            <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#007BFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
+        </div>
 
-    <!-- Top UI Buttons -->
-    <div id="history-btn" class="absolute top-4 left-4 rounded-full p-3 shadow-lg cursor-pointer z-10" style="background-color: var(--tg-bg-color);">
-      <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="color: var(--tg-text-color);"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-    </div>
-    <div id="profile-btn" class="absolute top-4 right-4 rounded-full p-3 shadow-lg cursor-pointer z-10" style="background-color: var(--tg-bg-color);">
-      <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="color: var(--tg-text-color);"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
-    </div>
+        <!-- My Location Button -->
+        <button id="my-location-btn" class="absolute top-5 right-5 z-10 bg-white p-3 rounded-full shadow-md">
+            <i data-lucide="locate-fixed" class="w-6 h-6 text-gray-700"></i>
+        </button>
 
-    <!-- Main Bottom Sheet -->
-    <div id="bottom-sheet" class="fixed bottom-0 left-0 right-0 rounded-t-2xl shadow-[0_-10px_30px_-15px_rgba(0,0,0,0.2)] p-4 transform translate-y-0 transition-transform duration-300 ease-in-out z-20" style="background-color: var(--tg-bg-color);">
-      <div class="w-10 h-1.5 rounded-full mx-auto mb-2" style="background-color: var(--tg-hint-color); opacity: 0.4;"></div>
-      
-      <!-- State 1: Address Selection -->
-      <div id="address-selection-state" class="pb-16">
-        <div class="space-y-3">
-          <!-- From Address Input -->
-          <div class="flex items-center p-3 rounded-xl justify-between" style="background-color: var(--tg-secondary-bg-color);">
-            <div class="flex items-center min-w-0">
-              <div class="w-4 h-4 rounded-full bg-blue-500 border-2 border-white ring-2 ring-blue-500 mr-3 flex-shrink-0"></div>
-              <span class="font-medium w-full truncate" id="from-address" style="color: var(--tg-text-color);">Определение местоположения...</span>
-            </div>
-            <div class="flex items-center gap-2 flex-shrink-0">
-              <button id="btn-my-location" class="px-2 py-1 rounded text-sm flex items-center justify-center h-7 w-12" style="background-color: var(--tg-button-color); color: var(--tg-button-text-color);"><span class="spinner hidden" style="width: 16px; height: 16px; border-width: 2px;"></span><span class="label">Моё</span></button>
-              <button id="btn-pick-on-map" class="px-2 py-1 rounded text-sm h-7" style="background-color: var(--tg-bg-color); color: var(--tg-text-color); border: 1px solid var(--tg-secondary-bg-color);">Указать</button>
-            </div>
-          </div>
+        <!-- Bottom Sheet -->
+        <div id="bottom-sheet" class="absolute bottom-0 left-0 right-0 bg-white rounded-t-2xl shadow-2xl p-4 flex flex-col z-10">
+            <div id="sheet-handle" class="w-12 h-1.5 bg-gray-300 rounded-full mx-auto mb-3 cursor-grab active:cursor-grabbing"></div>
 
-          <!-- Quick Address Chips -->
-          <div id="chips-row" class="flex gap-2">
-            <button id="chip-home" class="px-3 py-1 rounded-full text-sm" style="background-color: var(--tg-secondary-bg-color);">Дом</button>
-            <button id="chip-work" class="px-3 py-1 rounded-full text-sm" style="background-color: var(--tg-secondary-bg-color);">Работа</button>
-            <button id="chip-recent" class="px-3 py-1 rounded-full text-sm" style="background-color: var(--tg-secondary-bg-color);">Недавние</button>
-          </div>
-
-          <!-- Geocoder (To Address Input) -->
-          <div id="geocoder-container"></div>
-          
-          <!-- Trip Info & Tariffs (hidden by default) -->
-          <div id="trip-info" class="mt-2 p-3 rounded-xl hidden" style="background-color: var(--tg-secondary-bg-color);">
-            <div class="flex justify-between items-center">
-              <div>
-                <p id="estimated-time" class="font-semibold" style="color: var(--tg-text-color);"></p>
-                <p id="estimated-distance" class="text-sm" style="color: var(--tg-hint-color);"></p>
-                <div class="text-sm mt-1 flex items-center gap-2">
-                  <span id="estimated-price" class="font-bold" style="color: var(--tg-text-color);"></span>
-                  <span id="surge-badge" class="hidden text-xs px-2 py-0.5 rounded-full" style="background:#fde68a; color:#92400e;">Повышенный спрос</span>
+            <!-- VIEW 1: Initial Address Input -->
+            <div id="view-address-input">
+                <h2 class="text-xl font-bold text-gray-800 text-center mb-4">Куда поедем?</h2>
+                <div class="space-y-3">
+                    <div class="relative flex items-center">
+                         <i data-lucide="circle" class="absolute left-3 text-blue-500 w-5 h-5"></i>
+                         <input type="text" id="from-address" placeholder="Откуда" class="w-full bg-gray-100 rounded-lg pl-10 pr-4 py-3 focus:outline-none ring-2 ring-transparent focus:ring-blue-500">
+                    </div>
+                    <div class="relative flex items-center">
+                        <i data-lucide="map-pin" class="absolute left-3 text-gray-400 w-5 h-5"></i>
+                        <input type="text" id="to-address" placeholder="Куда" class="w-full bg-gray-100 rounded-lg pl-10 pr-4 py-3 focus:outline-none ring-2 ring-transparent focus:ring-blue-500">
+                    </div>
                 </div>
-              </div>
-              <div class="text-right">
-                <div id="pay-badge" class="inline-block text-xs px-2 py-1 rounded border cursor-pointer" style="border-color: var(--tg-hint-color); color: var(--tg-text-color);">Оплата: Наличные</div>
-                <div class="mt-2">
-                  <button id="promo-btn" class="text-xs underline" style="color: var(--tg-text-color);">Промокод</button>
+                 <button id="confirm-address-btn" class="w-full bg-gray-800 text-white font-bold py-3 rounded-lg mt-4 hover:bg-gray-900 transition-colors disabled:opacity-50" disabled>
+                    Далее
+                </button>
+            </div>
+
+            <!-- VIEW 2: Confirm Ride Details -->
+            <div id="view-confirm-ride" class="hidden">
+                 <div class="flex justify-between items-center mb-3">
+                    <h2 class="text-xl font-bold text-gray-800">Подтверждение</h2>
+                    <button id="back-to-address-btn"><i data-lucide="x" class="w-6 h-6 text-gray-500"></i></button>
                 </div>
-              </div>
+                <!-- Tariff Options -->
+                <div class="flex justify-around bg-gray-100 rounded-lg p-1 mb-4">
+                     <button class="tariff-btn flex-1 p-2 rounded-md bg-white shadow" data-multiplier="1">
+                        <span class="font-bold">Эконом</span> <span class="text-sm" id="price-economy"></span>
+                    </button>
+                    <button class="tariff-btn flex-1 p-2 rounded-md" data-multiplier="1.5">
+                        <span class="font-bold">Комфорт</span> <span class="text-sm" id="price-comfort"></span>
+                    </button>
+                    <button class="tariff-btn flex-1 p-2 rounded-md" data-multiplier="2.5">
+                        <span class="font-bold">Бизнес</span> <span class="text-sm" id="price-business"></span>
+                    </button>
+                </div>
+                <button id="order-ride-btn" class="w-full bg-blue-600 text-white font-bold py-3.5 rounded-lg hover:bg-blue-700 transition-colors">
+                    Заказать
+                </button>
             </div>
             
-            <div class="grid grid-cols-3 gap-2 mt-3">
-              <div id="tariff-economy" class="p-2 rounded border cursor-pointer text-center">
-                <p class="font-semibold">Эконом</p><p class="text-xs" style="color: var(--tg-hint-color);">Выгодно</p><p id="price-economy" class="text-sm font-bold mt-1">—</p>
-              </div>
-              <div id="tariff-comfort" class="p-2 rounded border cursor-pointer text-center">
-                <p class="font-semibold">Комфорт</p><p class="text-xs" style="color: var(--tg-hint-color);">Удобно</p><p id="price-comfort" class="text-sm font-bold mt-1">—</p>
-              </div>
-              <div id="tariff-van" class="p-2 rounded border cursor-pointer text-center">
-                <p class="font-semibold">Минивэн</p><p class="text-xs" style="color: var(--tg-hint-color);">Компания</p><p id="price-van" class="text-sm font-bold mt-1">—</p>
-              </div>
+            <!-- VIEW 3: Searching for Driver -->
+            <div id="view-searching" class="hidden text-center py-8">
+                <div class="w-16 h-16 bg-blue-500 rounded-full mx-auto mb-4 flex items-center justify-center pulse">
+                    <i data-lucide="car" class="w-8 h-8 text-white"></i>
+                </div>
+                <h2 class="text-xl font-bold text-gray-800">Ищем водителя...</h2>
+                <p class="text-gray-500">Это может занять некоторое время</p>
+                 <button id="cancel-search-btn" class="w-full bg-gray-200 text-gray-800 font-bold py-3 rounded-lg mt-6 hover:bg-gray-300 transition-colors">
+                    Отменить
+                </button>
             </div>
-          </div>
-        </div>
-      </div>
 
-      <!-- State 2: Searching -->
-      <div id="searching-state" class="hidden text-center py-4 pb-16">
-        <div class="flex items-center justify-center"><div class="spinner mr-4"></div><p class="text-lg font-semibold" style="color: var(--tg-text-color);">Ищем водителя...</p></div>
-        <p class="mt-1" style="color: var(--tg-hint-color);">Это может занять до минуты</p>
-      </div>
-
-      <!-- State 3: Trip in Progress -->
-      <div id="trip-state" class="hidden pb-16">
-        <div class="flex items-center">
-          <div class="w-16 h-16 rounded-full flex items-center justify-center mr-4 flex-shrink-0" style="background-color: var(--tg-secondary-bg-color);"><svg xmlns="http://www.w3.org/2000/svg" viewBox="-2 -2 28 28" fill="currentColor" class="w-8 h-8" style="color: var(--tg-text-color);"><path d="M18.92 6.01C18.72 5.42 18.16 5 17.5 5h-11C5.84 5 5.28 5.42 5.08 6.01L3 12v8c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h12v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-8l-2.08-5.99z"/></svg></div>
-          <div><p id="trip-status-text" class="text-lg font-bold" style="color: var(--tg-text-color);">Водитель подъезжает</p><p id="driver-eta" style="color: var(--tg-hint-color);">Прибытие через 3 мин</p></div>
         </div>
-        <div class="mt-3 p-3 rounded-xl" style="background-color: var(--tg-secondary-bg-color);"><p id="driver-info" class="font-semibold" style="color: var(--tg-text-color);">Toyota Camry, A123BC</p><p id="car-info" class="text-sm" style="color: var(--tg-hint-color);">Черный цвет</p></div>
-        <div class="mt-3 flex gap-2"><button id="call-driver-btn" class="flex-1 py-2 rounded-lg text-white" style="background-color: var(--tg-button-color);">Позвонить</button><button id="share-trip-btn" class="flex-1 py-2 rounded-lg" style="background-color: var(--tg-secondary-bg-color); color: var(--tg-text-color);">Поделиться</button><button id="safety-btn" class="flex-1 py-2 rounded-lg" style="background-color: var(--tg-secondary-bg-color); color: var(--tg-text-color);">Безопасность</button></div>
-      </div>
-      
-      <!-- State 4: Trip Finished -->
-      <div id="finished-state" class="hidden text-center py-6 pb-16">
-        <h2 class="text-2xl font-bold" style="color: var(--tg-text-color);">Поездка завершена!</h2>
-        <p class="text-lg mt-2" style="color: var(--tg-text-color);">К оплате: <span id="final-price" class="font-bold">120₽ наличными</span></p>
-        <div class="mt-4"><p class="text-md font-semibold" style="color: var(--tg-text-color);">Оцените поездку</p><div id="rating-stars" class="flex justify-center mt-2"><svg class="rating-star h-8 w-8 mx-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" data-rating="1"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.05 2.93c.3-.92 1.6-.92 1.9 0l1.52 4.67a1 1 0 0 0 .95.69h4.91c.97 0 1.37 1.24.59 1.81l-3.98 2.89a1 1 0 0 0-.36 1.12l1.52 4.67c.3.92-.75 1.69-1.54 1.12l-3.98-2.89a1 1 0 0 0-1.18 0l-3.98 2.89c-.78.57-1.84-.2-1.54-1.12l1.52-4.67a1 1 0 0 0-.36-1.12L3.08 10.1c-.79-.57-.39-1.81.59-1.81h4.91a1 1 0 0 0 .95-.69l1.52-4.67z"/></svg><svg class="rating-star h-8 w-8 mx-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" data-rating="2"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.05 2.93c.3-.92 1.6-.92 1.9 0l1.52 4.67a1 1 0 0 0 .95.69h4.91c.97 0 1.37 1.24.59 1.81l-3.98 2.89a1 1 0 0 0-.36 1.12l1.52 4.67c.3.92-.75 1.69-1.54 1.12l-3.98-2.89a1 1 0 0 0-1.18 0l-3.98 2.89c-.78.57-1.84-.2-1.54-1.12l1.52-4.67a1 1 0 0 0-.36-1.12L3.08 10.1c-.79-.57-.39-1.81.59-1.81h4.91a1 1 0 0 0 .95-.69l1.52-4.67z"/></svg><svg class="rating-star h-8 w-8 mx-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" data-rating="3"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.05 2.93c.3-.92 1.6-.92 1.9 0l1.52 4.67a1 1 0 0 0 .95.69h4.91c.97 0 1.37 1.24.59 1.81l-3.98 2.89a1 1 0 0 0-.36 1.12l1.52 4.67c.3.92-.75 1.69-1.54 1.12l-3.98-2.89a1 1 0 0 0-1.18 0l-3.98 2.89c-.78.57-1.84-.2-1.54-1.12l1.52-4.67a1 1 0 0 0-.36-1.12L3.08 10.1c-.79-.57-.39-1.81.59-1.81h4.91a1 1 0 0 0 .95-.69l1.52-4.67z"/></svg><svg class="rating-star h-8 w-8 mx-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" data-rating="4"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.05 2.93c.3-.92 1.6-.92 1.9 0l1.52 4.67a1 1 0 0 0 .95.69h4.91c.97 0 1.37 1.24.59 1.81l-3.98 2.89a1 1 0 0 0-.36 1.12l1.52 4.67c.3.92-.75 1.69-1.54 1.12l-3.98-2.89a1 1 0 0 0-1.18 0l-3.98 2.89c-.78.57-1.84-.2-1.54-1.12l1.52-4.67a1 1 0 0 0-.36-1.12L3.08 10.1c-.79-.57-.39-1.81.59-1.81h4.91a1 1 0 0 0 .95-.69l1.52-4.67z"/></svg><svg class="rating-star h-8 w-8 mx-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" data-rating="5"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.05 2.93c.3-.92 1.6-.92 1.9 0l1.52 4.67a1 1 0 0 0 .95.69h4.91c.97 0 1.37 1.24.59 1.81l-3.98 2.89a1 1 0 0 0-.36 1.12l1.52 4.67c.3.92-.75 1.69-1.54 1.12l-3.98-2.89a1 1 0 0 0-1.18 0l-3.98 2.89c-.78.57-1.84-.2-1.54-1.12l1.52-4.67a1 1 0 0 0-.36-1.12L3.08 10.1c-.79-.57-.39-1.81.59-1.81h4.91a1 1 0 0 0 .95-.69l1.52-4.67z"/></svg></div></div>
-      </div>
-    </div>
-    
-    <!-- Modals (History & Profile) -->
-    <div id="modal-overlay" class="modal-overlay"></div>
-    <div id="history-modal" class="modal-content"><h2 class="text-2xl font-bold mb-4" style="color: var(--tg-text-color);">История поездок</h2><div id="history-list" class="space-y-3"></div></div>
-    <div id="profile-modal" class="modal-content">
-      <h2 class="text-2xl font-bold mb-6" style="color: var(--tg-text-color);">Профиль</h2>
-      <div class="flex flex-col items-center">
-        <div class="w-24 h-24 rounded-full mb-4 flex items-center justify-center" style="background-color: var(--tg-secondary-bg-color);"><svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12" style="color: var(--tg-hint-color);" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clip-rule="evenodd" /></svg></div>
-        <p id="profile-name" class="text-xl font-semibold"></p><p id="profile-username" style="color: var(--tg-hint-color);"></p>
-      </div>
     </div>
 
     <script>
-    (function() {
-      // ====== CONFIGURATION ======
-      const MAPBOX_ACCESS_TOKEN = 'pk.eyJ1IjoieXVuZ3JlemFjIiwiYSI6ImNtOW10ZzJ6bDBjNHUyanI3ejc5eXo1d2MifQ._tryk9cXjfReUGLGnNkm6Q'; // Используем ваш публичный токен
-      const CITY_CENTER = [46.5700, 56.3333]; // Козьмодемьянск [lng, lat]
-      const CITY_BOUNDS = [46.4, 56.2, 46.7, 56.4]; // [minLng, minLat, maxLng, maxLat]
+        document.addEventListener('DOMContentLoaded', function () {
+            // --- App State ---
+            const AppState = {
+                CHOOSING_PICKUP: 'CHOOSING_PICKUP',
+                CHOOSING_DESTINATION: 'CHOOSING_DESTINATION',
+                CONFIRMING_RIDE: 'CONFIRMING_RIDE',
+                SEARCHING: 'SEARCHING',
+            };
+            let currentState = AppState.CHOOSING_PICKUP;
+            let fromCoords, toCoords;
+            let isDragging = false;
+            let selectedTariffMultiplier = 1;
 
-      const TARIFFS = {
-        economy: { name: 'Эконом', base: 60, perKm: 16, perMin: 4, minFare: 99 },
-        comfort: { name: 'Комфорт', base: 80, perKm: 22, perMin: 6, minFare: 149 },
-        van:     { name: 'Минивэн', base: 120, perKm: 30, perMin: 8, minFare: 249 }
-      };
-      const SURGE_RULES = [
-        { hours: [7, 10], mult: 1.2 }, { hours: [17, 20], mult: 1.25 }
-      ];
-      const FAKE_DRIVERS = [
-        { name: 'Алексей', model: 'Toyota Camry', color: 'Чёрный' },
-        { name: 'Мария', model: 'Hyundai Solaris', color: 'Белый' },
-        { name: 'Дмитрий', model: 'Kia Rio', color: 'Серебристый' },
-        { name: 'Ольга', model: 'Volkswagen Polo', color: 'Синий' },
-        { name: 'Сергей', model: 'Ford Focus', color: 'Красный' }
-      ];
+            // --- DOM Elements ---
+            const fromAddressInput = document.getElementById('from-address');
+            const toAddressInput = document.getElementById('to-address');
+            const confirmAddressBtn = document.getElementById('confirm-address-btn');
+            const centerMarker = document.getElementById('center-marker');
+            const bottomSheet = document.getElementById('bottom-sheet');
+            
+            const viewAddressInput = document.getElementById('view-address-input');
+            const viewConfirmRide = document.getElementById('view-confirm-ride');
+            const viewSearching = document.getElementById('view-searching');
 
-      // ====== DOM ELEMENTS ======
-      const dom = {
-          historyBtn: document.getElementById('history-btn'),
-          profileBtn: document.getElementById('profile-btn'),
-          modalOverlay: document.getElementById('modal-overlay'),
-          historyModal: document.getElementById('history-modal'),
-          profileModal: document.getElementById('profile-modal'),
-          fromAddressEl: document.getElementById('from-address'),
-          btnMyLocation: document.getElementById('btn-my-location'),
-          btnPickOnMap: document.getElementById('btn-pick-on-map'),
-          centerMarker: document.getElementById('center-marker'),
-          chips: { home: document.getElementById('chip-home'), work: document.getElementById('chip-work'), recent: document.getElementById('chip-recent') },
-          tripInfo: {
-              div: document.getElementById('trip-info'),
-              time: document.getElementById('estimated-time'),
-              distance: document.getElementById('estimated-distance'),
-              price: document.getElementById('estimated-price'),
-              surgeBadge: document.getElementById('surge-badge'),
-              payBadge: document.getElementById('pay-badge'),
-              promoBtn: document.getElementById('promo-btn'),
-          },
-          tariffs: {
-              economy: { tile: document.getElementById('tariff-economy'), price: document.getElementById('price-economy') },
-              comfort: { tile: document.getElementById('tariff-comfort'), price: document.getElementById('price-comfort') },
-              van:     { tile: document.getElementById('tariff-van'),     price: document.getElementById('price-van') },
-          },
-          states: {
-              addressSelection: document.getElementById('address-selection-state'),
-              searching: document.getElementById('searching-state'),
-              trip: document.getElementById('trip-state'),
-              finished: document.getElementById('finished-state'),
-          },
-          trip: {
-              statusText: document.getElementById('trip-status-text'),
-              driverEta: document.getElementById('driver-eta'),
-              driverInfo: document.getElementById('driver-info'),
-              carInfo: document.getElementById('car-info'),
-              callBtn: document.getElementById('call-driver-btn'),
-              shareBtn: document.getElementById('share-trip-btn'),
-              safetyBtn: document.getElementById('safety-btn'),
-          },
-          finished: {
-              finalPrice: document.getElementById('final-price'),
-              ratingStars: document.querySelectorAll('.rating-star'),
-          }
-      };
-      
-      // ====== APP STATE ======
-      const tg = window.Telegram?.WebApp || null;
-
-      let map, geocoder;
-      let userMarker, driverMarker;
-      let nearbyDrivers = [];
-
-      let userLocation = null, destinationLocation = null;
-      let fromAddressText = 'Определение местоположения...', toAddressText = '';
-
-      let animationFrameId = null, findDriverTimeout = null;
-      let routeAbortController = null;
-      let isPickOnMapMode = false;
-
-      let tripHistory = [], recents = [], presets = { home: null, work: null };
-      
-      let state = {
-          app: 'addressSelection', // addressSelection, searching, trip, finished
-          tariff: 'economy',
-          payment: 'cash',
-          promo: null,
-          estimatedDuration: 0,
-          estimatedDistance: 0,
-          calculatedPrice: 0,
-          surgeMultiplier: 1,
-          currentTripId: null,
-          selectedRating: 0,
-      };
-
-      const layerStore = { estimated: null, active: null, history: null };
-
-      // ====== THEME & INITIALIZATION ======
-      function applyTheme() {
-        const theme = tg?.themeParams || {};
-        const r = document.documentElement.style;
-        r.setProperty('--tg-bg-color', theme.bg_color || '#ffffff');
-        r.setProperty('--tg-text-color', theme.text_color || '#000000');
-        r.setProperty('--tg-hint-color', theme.hint_color || '#999999');
-        r.setProperty('--tg-button-color', theme.button_color || '#2481cc');
-        r.setProperty('--tg-button-text-color', theme.button_text_color || '#ffffff');
-        r.setProperty('--tg-secondary-bg-color', theme.secondary_bg_color || '#f4f4f4');
-        r.setProperty('--tg-accent-color', theme.link_color || '#3887be');
-        
-        if (tg) {
-          tg.setHeaderColor(theme.bg_color || '#ffffff');
-          tg.setBackgroundColor(theme.bg_color || '#ffffff');
-        }
-        
-        try {
-          const style = isDark(theme.bg_color) ? 'mapbox://styles/mapbox/dark-v11' : 'mapbox://styles/mapbox/streets-v12';
-          if (map && map.getStyle()?.sprite?.indexOf(style) === -1) {
-            map.setStyle(style);
-            map.once('styledata', readdAllLayers);
-          }
-        } catch {}
-      }
-      function isDark(hex) {
-        if (!hex || typeof hex !== 'string') return false;
-        const v = hex.replace('#','');
-        if (![6,8].includes(v.length)) return false;
-        const r = parseInt(v.slice(0,2), 16), g = parseInt(v.slice(2,4), 16), b = parseInt(v.slice(4,6), 16);
-        const y = 0.2126*Math.pow(r/255,2.2) + 0.7152*Math.pow(g/255,2.2) + 0.0722*Math.pow(b/255,2.2);
-        return y < 0.5;
-      }
-      
-      function appInit() {
-          if (tg) {
-              tg.onEvent('themeChanged', applyTheme);
-              tg.onEvent('backButtonClicked', onBackButton);
-              tg.onEvent('mainButtonClicked', onMainButtonClick);
-              tg.ready();
-              tg.expand();
-          }
-          applyTheme();
-          loadPersistedData().then(() => {
-              updatePaymentBadge();
-              updateTariffUI();
-              updateMainButton();
-          });
-          initializeMap();
-      }
-
-      // ====== MAP ======
-      function initializeMap() {
-          if (!MAPBOX_ACCESS_TOKEN) {
-              showTgAlert('Не задан Mapbox token.');
-              return;
-          }
-          mapboxgl.accessToken = MAPBOX_ACCESS_TOKEN;
-
-          map = new mapboxgl.Map({
-              container: 'map',
-              style: isDark(tg?.themeParams?.bg_color) ? 'mapbox://styles/mapbox/dark-v11' : 'mapbox://styles/mapbox/streets-v12',
-              center: CITY_CENTER,
-              zoom: 13,
-              pitch: 20
-          });
-
-          map.on('load', () => {
-              initializeGeocoder();
-              getCurrentUserLocation();
-              placeNearbyDrivers();
-          });
-
-          map.on('moveend', () => {
-              // Update geocoder proximity for better search results
-              if (geocoder) geocoder.setProximity(map.getCenter());
-              // If in pick mode, update address preview
-              if (isPickOnMapMode) {
-                  const center = map.getCenter().wrap();
-                  dom.fromAddressEl.textContent = 'Загрузка адреса...';
-                  reverseGeocode([center.lng, center.lat]).then(name => {
-                    fromAddressText = name || 'Точка на карте';
-                    dom.fromAddressEl.textContent = fromAddressText;
-                  });
-              }
-          });
-      }
-
-      function initializeGeocoder() {
-          geocoder = new MapboxGeocoder({
-              accessToken: mapboxgl.accessToken,
-              mapboxgl: mapboxgl,
-              marker: false,
-              placeholder: 'Куда поедем?',
-              bbox: CITY_BOUNDS,
-              countries: 'ru',
-              language: 'ru-RU',
-              proximity: { longitude: CITY_CENTER[0], latitude: CITY_CENTER[1] }
-          });
-          document.getElementById('geocoder-container').appendChild(geocoder.onAdd(map));
-
-          geocoder.on('result', async (e) => {
-              destinationLocation = e.result.geometry.coordinates;
-              toAddressText = e.result.place_name || '';
-              pushRecent({ lng: destinationLocation[0], lat: destinationLocation[1], placeName: toAddressText });
-              await showEstimatedRouteAndInfo();
-              updateMainButton();
-          });
-          geocoder.on('clear', () => {
-              destinationLocation = null;
-              removeRouteLayer('estimated-route');
-              layerStore.estimated = null;
-              dom.tripInfo.div.classList.add('hidden');
-              updateMainButton();
-          });
-      }
-
-      function getCurrentUserLocation() {
-        toggleMyLocationSpinner(true);
-        navigator.geolocation.getCurrentPosition(
-          async (pos) => {
-            const newLocation = [pos.coords.longitude, pos.coords.latitude];
-            await updateUserLocation(newLocation, true);
-            toggleMyLocationSpinner(false);
-          },
-          () => {
-            // Handle error or denial
-            if (!userLocation) { // Only set to city center if no location is set at all
-              updateUserLocation(CITY_CENTER, true, 'Центр города');
+            // --- Telegram Web App Init ---
+            const tg = window.Telegram ? window.Telegram.WebApp : null;
+            if (tg) {
+                tg.ready();
+                tg.expand();
             }
-            showTgAlert('Не удалось определить геопозицию. Используется центр города.');
-            toggleMyLocationSpinner(false);
-          },
-          { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
-        );
-      }
-      
-      async function updateUserLocation(coords, shouldFlyTo = false, forcedName = null) {
-          userLocation = coords;
-          setOrMoveUserMarker(userLocation);
-          if (shouldFlyTo) map.flyTo({ center: userLocation, zoom: 15 });
-          
-          if (forcedName) {
-              fromAddressText = forcedName;
-              dom.fromAddressEl.textContent = fromAddressText;
-          } else {
-              dom.fromAddressEl.textContent = "Загрузка адреса...";
-              fromAddressText = await reverseGeocode(userLocation) || "Точка на карте";
-              dom.fromAddressEl.textContent = fromAddressText;
-          }
 
-          if (geocoder) geocoder.setProximity({ longitude: userLocation[0], latitude: userLocation[1] });
-          if (destinationLocation) await showEstimatedRouteAndInfo();
-      }
-
-      function reverseGeocode([lng, lat]) {
-          const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?access_token=${mapboxgl.accessToken}&language=ru`;
-          return fetch(url).then(r => r.json()).then(j => j.features?.[0]?.place_name || null);
-      }
-
-      function setOrMoveUserMarker(coords) {
-          if (userMarker) {
-            userMarker.setLngLat(coords);
-          } else {
-              const el = document.createElement('div');
-              el.className = 'user-marker';
-              userMarker = new mapboxgl.Marker(el).setLngLat(coords).addTo(map);
-          }
-      }
-
-      function placeNearbyDrivers() {
-          clearNearbyDrivers();
-          const count = 4 + Math.floor(Math.random() * 3);
-          for (let i = 0; i < count; i++) {
-              const coord = getRandomNearby(userLocation || CITY_CENTER, 0.02);
-              const el = document.createElement('div');
-              el.className = 'driver-marker';
-              const m = new mapboxgl.Marker({ element: el, rotationAlignment: 'map' }).setLngLat(coord).addTo(map);
-              nearbyDrivers.push(m);
-          }
-      }
-      function clearNearbyDrivers() {
-          nearbyDrivers.forEach(m => m.remove());
-          nearbyDrivers = [];
-      }
-      function getRandomNearby(base, offset) {
-          return [base[0] + (Math.random() - 0.5) * offset, base[1] + (Math.random() - 0.5) * offset];
-      }
-
-      // ====== ROUTE / PRICING ======
-      async function showEstimatedRouteAndInfo() {
-          if (!userLocation || !destinationLocation) return;
-          const data = await getRouteData(userLocation, destinationLocation);
-          if (!data) {
-              showTgAlert('Не удалось рассчитать маршрут. Попробуйте другой адрес.');
-              return;
-          }
-
-          state.estimatedDuration = data.duration / 60;
-          state.estimatedDistance = data.distance / 1000;
-          state.surgeMultiplier = getSurgeMultiplier();
-          const prices = computeAllTariffs(state.estimatedDistance, state.estimatedDuration, state.surgeMultiplier, state.promo);
-
-          dom.tariffs.economy.price.textContent = `~${prices.economy}₽`;
-          dom.tariffs.comfort.price.textContent = `~${prices.comfort}₽`;
-          dom.tariffs.van.price.textContent     = `~${prices.van}₽`;
-          
-          state.calculatedPrice = prices[state.tariff];
-
-          dom.tripInfo.time.textContent = `Время в пути: ${Math.ceil(state.estimatedDuration)} мин`;
-          dom.tripInfo.distance.textContent = `Расстояние: ${state.estimatedDistance.toFixed(1)} км`;
-          dom.tripInfo.price.textContent = `Стоимость: ${state.calculatedPrice}₽`;
-          dom.tripInfo.surgeBadge.classList.toggle('hidden', state.surgeMultiplier <= 1.01);
-          dom.tripInfo.div.classList.remove('hidden');
-
-          const geojson = { type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: data.geometry.coordinates } };
-          layerStore.estimated = geojson;
-          addRouteLayer('estimated-route', geojson, '#9ca3af', 4, 0.55, [2, 2]);
-          fitToCoordinates(data.geometry.coordinates, { bottom: 350 });
-      }
-
-      function getRouteData(start, end) {
-          if (routeAbortController) routeAbortController.abort();
-          routeAbortController = new AbortController();
-          const url = `https://api.mapbox.com/directions/v5/mapbox/driving/${start.join(',')};${end.join(',')}?steps=false&geometries=geojson&access_token=${mapboxgl.accessToken}`;
-          return fetch(url, { signal: routeAbortController.signal })
-              .then(res => res.ok ? res.json() : Promise.reject('Network error'))
-              .then(d => d.routes?.[0] || null)
-              .catch(e => { if (e.name !== 'AbortError') console.error(e); return null; })
-              .finally(() => routeAbortController = null);
-      }
-
-      function computeAllTariffs(km, min, mult, promoCode) {
-          const calc = (t) => {
-              const base = t.base + t.perKm * km + t.perMin * min;
-              let price = Math.max(t.minFare, base) * (mult || 1);
-              if (promoCode) price = applyPromo(price, promoCode);
-              return Math.round(price);
-          };
-          return {
-              economy: calc(TARIFFS.economy),
-              comfort: calc(TARIFFS.comfort),
-              van:     calc(TARIFFS.van)
-          };
-      }
-      function getSurgeMultiplier() { /* ... unchanged ... */ }
-      function applyPromo(price, code) { /* ... unchanged ... */ }
-
-      // Map Layer Management
-      function addRouteLayer(id, geojson, color, width, opacity, dasharray) {
-          removeRouteLayer(id);
-          if (!map || !map.isStyleLoaded()) return;
-
-          map.addSource(id, { type: 'geojson', data: geojson });
-          const paint = { 'line-color': color, 'line-width': width, 'line-opacity': opacity };
-          if (dasharray) paint['line-dasharray'] = dasharray;
-          map.addLayer({ id, type: 'line', source: id, layout: { 'line-join': 'round', 'line-cap': 'round' }, paint });
-      }
-      function removeRouteLayer(id) {
-          if (!map || !map.isStyleLoaded()) return;
-          try {
-              if (map.getLayer(id)) map.removeLayer(id);
-              if (map.getSource(id)) map.getSource(id);
-          } catch {}
-      }
-      function fitToCoordinates(coords, extraPadding = {}) {
-          if (!coords || coords.length < 2) return;
-          const bounds = new mapboxgl.LngLatBounds(coords[0], coords[0]);
-          for (const coord of coords) bounds.extend(coord);
-          map.fitBounds(bounds, { padding: { top: 40, bottom: 80, left: 40, right: 40, ...extraPadding }, duration: 700 });
-      }
-      function readdAllLayers() {
-          if (layerStore.estimated) addRouteLayer('estimated-route', layerStore.estimated, '#9ca3af', 4, 0.55, [2,2]);
-          if (layerStore.active)    addRouteLayer('route', layerStore.active, getComputedStyle(document.documentElement).getPropertyValue('--tg-accent-color').trim() || '#3887be', 5, 0.8);
-          if (layerStore.history)   addRouteLayer('history-route', layerStore.history, '#9ca3af', 5, 0.8);
-      }
-
-      // ====== UI STATE & LOGIC ======
-      function switchState(newState) {
-          state.app = newState;
-          Object.values(dom.states).forEach(s => s.classList.add('hidden'));
-          if (dom.states[newState]) dom.states[newState].classList.remove('hidden');
-          updateMainButton();
-      }
-
-      function updateMainButton() {
-          if (!tg) return;
-          switch (state.app) {
-              case 'addressSelection':
-                  if (userLocation && destinationLocation) {
-                      tg.MainButton.setText(`Заказать такси (${state.calculatedPrice}₽)`);
-                      tg.MainButton.setParams({ color: tg.themeParams?.button_color || '#2481cc' });
-                      tg.MainButton.show().enable();
-                  } else {
-                      tg.MainButton.hide();
-                  }
-                  break;
-              case 'searching':
-                  tg.MainButton.setText(`Отменить`);
-                  tg.MainButton.setParams({ color: '#ef4444' });
-                  tg.MainButton.show().enable();
-                  break;
-              case 'trip':
-                  tg.MainButton.hide();
-                  break;
-              case 'finished':
-                  tg.MainButton.setText('Заказать новую поездку');
-                  tg.MainButton.setParams({ color: tg.themeParams?.button_color || '#2481cc' });
-                  tg.MainButton.show().enable();
-                  break;
-          }
-      }
-
-      function onMainButtonClick() {
-          tg?.HapticFeedback.impactOccurred('medium');
-          switch (state.app) {
-              case 'addressSelection':
-                  showTgConfirm(`Подтверждаете заказ за ${state.calculatedPrice}₽?`, (ok) => ok && proceedOrder());
-                  break;
-              case 'searching':
-                  clearTimeout(findDriverTimeout);
-                  resetToSelection();
-                  tg?.HapticFeedback.notificationOccurred('warning');
-                  break;
-              case 'finished':
-                  resetToSelection();
-                  break;
-          }
-      }
-
-      function onBackButton() {
-          if (document.querySelector('.modal-content.active')) { closeModal(); return; }
-          if (isPickOnMapMode) { togglePickOnMapMode(false); return; }
-          
-          if (['trip', 'searching'].includes(state.app)) {
-              showTgConfirm('Отменить текущую поездку?', (ok) => { if (ok) resetToSelection(); });
-          } else if (state.app === 'finished') {
-              resetToSelection();
-          } else {
-              tg?.close();
-          }
-      }
-
-      function proceedOrder() {
-          switchState('searching');
-          removeRouteLayer('estimated-route');
-          layerStore.estimated = null;
-
-          // Send data to Telegram bot
-          const order = { /* ... payload ... */ };
-          tg?.sendData(JSON.stringify(order));
-
-          // Simulate finding a driver
-          const willFindDriver = Math.random() > 0.15; // 85% chance of success
-          const randomDelay = 3000 + Math.random() * 5000;
-          findDriverTimeout = setTimeout(() => {
-              if (willFindDriver) {
-                  startTripSimulation();
-              } else {
-                  showTgAlert('К сожалению, рядом нет свободных водителей. Попробуйте позже.');
-                  resetToSelection();
-              }
-          }, randomDelay);
-      }
-
-      // ====== TRIP SIMULATION ======
-      // Functions like startTripSimulation, getRouteAndAnimate, animateAlong, generatePlate are mostly unchanged
-      // but adapted to use the new state and DOM objects.
-      function startTripSimulation() {
-        switchState('trip');
-        const driver = FAKE_DRIVERS[Math.floor(Math.random() * FAKE_DRIVERS.length)];
-        const plate = generatePlate();
-        dom.trip.driverInfo.textContent = `${driver.name} • ${driver.model}, ${plate}`;
-        dom.trip.carInfo.textContent = `${driver.color} цвет`;
-        clearNearbyDrivers();
-        
-        const driverStart = getRandomNearby(userLocation, 0.02);
-        const el = document.createElement('div');
-        el.className = 'driver-marker';
-        driverMarker = new mapboxgl.Marker({ element: el, rotationAlignment: 'map' }).setLngLat(driverStart).addTo(map);
-
-        dom.trip.statusText.textContent = 'Водитель подъезжает';
-
-        getRouteAndAnimate(driverStart, userLocation, 'pickup', () => {
-          dom.trip.statusText.textContent = 'Водитель ожидает';
-          dom.trip.driverEta.textContent = 'Пожалуйста, выходите';
-          tg?.HapticFeedback.notificationOccurred('success');
-          
-          setTimeout(() => {
-            dom.trip.statusText.textContent = 'В пути';
-            getRouteAndAnimate(userLocation, destinationLocation, 'dropoff', (finalGeoJSON) => {
-              switchState('finished');
-              const payText = (state.payment === 'cash') ? 'наличными' : 'картой';
-              dom.finished.finalPrice.textContent = `${state.calculatedPrice}₽ ${payText}`;
-              state.currentTripId = Date.now();
-              saveTrip({
-                id: state.currentTripId,
-                from: fromAddressText,
-                to: toAddressText,
-                driver: `${driver.name} • ${driver.model}, ${plate}`,
-                route: finalGeoJSON,
-                date: new Date().toLocaleString('ru-RU'),
-                distance: state.estimatedDistance.toFixed(1),
-                duration: Math.ceil(state.estimatedDuration),
-                price: state.calculatedPrice,
-                rating: 0
-              });
-              tg?.HapticFeedback.notificationOccurred('success');
-              if (driverMarker) { driverMarker.remove(); driverMarker = null; }
+            // --- Mapbox Init ---
+            mapboxgl.accessToken = 'pk.eyJ1IjoieXVuZ3JlemFjIiwiYSI6ImNtOW10ZzJ6bDBjNHUyanI3ejc5eXo1d2MifQ._tryk9cXjfReUGLGnNkm6Q';
+            const map = new mapboxgl.Map({
+                container: 'map',
+                style: 'mapbox://styles/mapbox/streets-v12',
+                center: [37.6173, 55.7558],
+                zoom: 11,
+                attributionControl: false
             });
-          }, 4000);
+            
+            const geolocate = new mapboxgl.GeolocateControl({
+                positionOptions: { enableHighAccuracy: true },
+                trackUserLocation: true,
+                showUserHeading: true
+            });
+            map.addControl(geolocate);
+
+            map.on('load', () => {
+                geolocate.trigger(); // Automatically get user location on load
+                 updateUI();
+            });
+
+            // --- UI Update Logic ---
+            function updateUI() {
+                // Hide all views
+                [viewAddressInput, viewConfirmRide, viewSearching].forEach(v => v.classList.add('hidden'));
+                centerMarker.classList.add('hidden');
+
+                switch (currentState) {
+                    case AppState.CHOOSING_PICKUP:
+                        viewAddressInput.classList.remove('hidden');
+                        centerMarker.classList.remove('hidden');
+                        fromAddressInput.classList.add('focus:ring-blue-500');
+                        toAddressInput.classList.remove('focus:ring-blue-500');
+                        setBottomSheetHeight('180px');
+                        break;
+                    case AppState.CHOOSING_DESTINATION:
+                        viewAddressInput.classList.remove('hidden');
+                        centerMarker.classList.remove('hidden');
+                        fromAddressInput.classList.remove('focus:ring-blue-500');
+                        toAddressInput.classList.add('focus:ring-blue-500');
+                        setBottomSheetHeight('180px');
+                        break;
+                    case AppState.CONFIRMING_RIDE:
+                        viewConfirmRide.classList.remove('hidden');
+                        setBottomSheetHeight('200px');
+                        break;
+                    case AppState.SEARCHING:
+                        viewSearching.classList.remove('hidden');
+                         setBottomSheetHeight('250px');
+                        break;
+                }
+            }
+            
+            function setBottomSheetHeight(height) {
+                bottomSheet.style.transform = `translateY(calc(100% - ${height}))`;
+            }
+
+            // --- Map & Geocoding Logic ---
+            const fetchAddress = async (coords) => {
+                const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${coords.lng},${coords.lat}.json?access_token=${mapboxgl.accessToken}&language=ru`;
+                try {
+                    const response = await fetch(url);
+                    const data = await response.json();
+                    return data.features[0] ? data.features[0].place_name : 'Не удалось определить адрес';
+                } catch (error) {
+                    console.error("Geocoding error:", error);
+                    return 'Ошибка определения адреса';
+                }
+            };
+            
+            const updateAddressFromMapCenter = async () => {
+                if (isDragging) return;
+                const center = map.getCenter();
+                const address = await fetchAddress(center);
+                if (currentState === AppState.CHOOSING_PICKUP) {
+                    fromAddressInput.value = address;
+                    fromCoords = center;
+                } else if (currentState === AppState.CHOOSING_DESTINATION) {
+                    toAddressInput.value = address;
+                    toCoords = center;
+                }
+                 checkIfCanConfirm();
+            };
+            
+            function checkIfCanConfirm() {
+                confirmAddressBtn.disabled = !(fromCoords && toCoords);
+            }
+
+            map.on('dragstart', () => isDragging = true);
+            map.on('dragend', () => { isDragging = false; updateAddressFromMapCenter(); });
+            map.on('moveend', () => { if(!isDragging) updateAddressFromMapCenter(); });
+            
+            geolocate.on('geolocate', (e) => {
+                const coords = { lng: e.coords.longitude, lat: e.coords.latitude };
+                if (currentState === AppState.CHOOSING_PICKUP) {
+                    fromCoords = coords;
+                    fetchAddress(coords).then(addr => fromAddressInput.value = addr);
+                    map.flyTo({ center: coords, zoom: 15 });
+                }
+            });
+
+            // --- Route Drawing Logic ---
+            const drawRoute = (geometry) => {
+                 if (map.getSource('route')) {
+                    map.getSource('route').setData(geometry);
+                } else {
+                    map.addLayer({
+                        id: 'route',
+                        type: 'line',
+                        source: { type: 'geojson', data: geometry },
+                        layout: { 'line-join': 'round', 'line-cap': 'round' },
+                        paint: { 'line-color': '#007BFF', 'line-width': 6, 'line-opacity': 0.8 }
+                    });
+                }
+                 const coordinates = geometry.geometry.coordinates;
+                 const bounds = new mapboxgl.LngLatBounds(coordinates[0], coordinates[0]);
+                 for (const coord of coordinates) {
+                     bounds.extend(coord);
+                 }
+                 map.fitBounds(bounds, { padding: 80 });
+            };
+            
+             const clearRoute = () => {
+                if (map.getLayer('route')) map.removeLayer('route');
+                if (map.getSource('route')) map.removeSource('route');
+            };
+
+            // --- Event Listeners ---
+            document.getElementById('my-location-btn').addEventListener('click', () => geolocate.trigger());
+            
+            fromAddressInput.addEventListener('focus', () => {
+                currentState = AppState.CHOOSING_PICKUP;
+                updateUI();
+            });
+            toAddressInput.addEventListener('focus', () => {
+                currentState = AppState.CHOOSING_DESTINATION;
+                updateUI();
+            });
+
+            confirmAddressBtn.addEventListener('click', async () => {
+                currentState = AppState.CONFIRMING_RIDE;
+                updateUI();
+                
+                // Fetch and draw route
+                const url = `https://api.mapbox.com/directions/v5/mapbox/driving/${fromCoords.lng},${fromCoords.lat};${toCoords.lng},${toCoords.lat}?geometries=geojson&access_token=${mapboxgl.accessToken}`;
+                try {
+                    const response = await fetch(url);
+                    const data = await response.json();
+                    if (data.routes && data.routes.length > 0) {
+                        const route = data.routes[0];
+                        drawRoute({type: 'Feature', geometry: route.geometry});
+                        
+                        // Calculate price
+                        const distanceInKm = route.distance / 1000;
+                        const basePrice = 150 + distanceInKm * 25; // Dummy price logic
+                        
+                        document.querySelectorAll('.tariff-btn').forEach(btn => {
+                            const multiplier = parseFloat(btn.dataset.multiplier);
+                            const finalPrice = Math.round(basePrice * multiplier);
+                            btn.querySelector('span:last-child').textContent = `~${finalPrice}₽`;
+                        });
+                    }
+                } catch(error) {
+                    console.error("Directions API error:", error);
+                }
+            });
+
+            document.getElementById('back-to-address-btn').addEventListener('click', () => {
+                currentState = AppState.CHOOSING_DESTINATION;
+                clearRoute();
+                updateUI();
+                map.flyTo({ center: toCoords, zoom: 15 });
+            });
+            
+            document.querySelectorAll('.tariff-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    document.querySelectorAll('.tariff-btn').forEach(b => {
+                        b.classList.remove('bg-white', 'shadow');
+                    });
+                    btn.classList.add('bg-white', 'shadow');
+                    selectedTariffMultiplier = parseFloat(btn.dataset.multiplier);
+                });
+            });
+
+            document.getElementById('order-ride-btn').addEventListener('click', () => {
+                currentState = AppState.SEARCHING;
+                updateUI();
+                // TODO: Here you will call Supabase backend to create an order
+                console.log('Order created! Tariff multiplier:', selectedTariffMultiplier);
+            });
+            
+            document.getElementById('cancel-search-btn').addEventListener('click', () => {
+                currentState = AppState.CONFIRMING_RIDE;
+                updateUI();
+                // TODO: Call Supabase to cancel the search
+            });
+
+            // --- Init Icons ---
+            lucide.createIcons();
         });
-      }
-      function getRouteAndAnimate(start, end, phase, onComplete) { /* ... same logic ... */ }
-      function animateAlong(route, durationSec, done, phase) { /* ... same logic ... */ }
-      function generatePlate() { /* ... unchanged ... */ }
-      function rand(n) { return Math.floor(Math.random() * n); }
-
-      // ====== MODALS, PERSISTENCE, HELPERS ======
-      async function loadPersistedData() { /* ... implementation to use tg.CloudStorage or localStorage ... */ }
-      function persist(key, value) { /* ... implementation to use tg.CloudStorage or localStorage ... */ }
-      function saveTrip(trip) { /* ... implementation ... */ }
-      function renderHistory() { /* ... implementation ... */ }
-      function showHistoryRoute(routeGeoJSON) { /* ... implementation ... */ }
-      function renderProfile() { /* ... implementation ... */ }
-
-      function openModal(modal) {
-          modal.classList.add('active');
-          dom.modalOverlay.classList.add('active');
-          tg?.BackButton.show();
-      }
-      function closeModal() {
-          document.querySelectorAll('.modal-content.active').forEach(m => m.classList.remove('active'));
-          dom.modalOverlay.classList.remove('active');
-          tg?.BackButton.hide();
-          removeRouteLayer('history-route'); layerStore.history = null;
-      }
-      
-      function resetToSelection() {
-        if (animationFrameId) cancelAnimationFrame(animationFrameId);
-        if (findDriverTimeout) clearTimeout(findDriverTimeout);
-
-        Object.values(layerStore).forEach((_, i) => Object.values(layerStore)[i] = null);
-        removeRouteLayer('route');
-        removeRouteLayer('estimated-route');
-        removeRouteLayer('history-route');
-
-        if (driverMarker) { driverMarker.remove(); driverMarker = null; }
-        geocoder?.clear();
-
-        destinationLocation = null;
-        dom.tripInfo.div.classList.add('hidden');
-        state.selectedRating = 0;
-        dom.finished.ratingStars.forEach(s => { s.classList.remove('selected'); s.style.color = ''; });
-
-        placeNearbyDrivers();
-        if (userLocation) {
-          map.flyTo({ center: userLocation, zoom: 15 });
-          setOrMoveUserMarker(userLocation);
-        }
-        switchState('addressSelection');
-      }
-
-      function escapeHtml(s) { /* ... unchanged ... */ }
-      
-      // Presets & Recents logic...
-      
-      // Improved "Pick on Map" Mode
-      function togglePickOnMapMode(enabled) {
-          isPickOnMapMode = enabled;
-          dom.centerMarker.classList.toggle('hidden', !enabled);
-          dom.btnPickOnMap.textContent = enabled ? 'Готово' : 'Указать';
-          userMarker.getPopup()?.remove(); // Hide popup if any
-          userMarker.getElement().style.opacity = enabled ? 0.3 : 1;
-          
-          if (enabled) {
-              tg?.HapticFeedback.impactOccurred('light');
-          } else {
-              const center = map.getCenter().wrap();
-              updateUserLocation([center.lng, center.lat]);
-              tg?.HapticFeedback.selectionChanged();
-          }
-      }
-
-      function updatePaymentBadge() { /* ... same logic ... */ }
-      function updateTariffUI() { /* ... same logic ... */ }
-      function recalcPricesIfNeeded() { /* ... same logic ... */ }
-      
-      function askPromo() {
-          // Using TG's built-in prompt for better integration
-          tg?.showScanQrPopup({ text: "Введите промокод" }, (text) => {
-              if (text) {
-                  state.promo = text.trim();
-                  persist('promo', state.promo);
-                  recalcPricesIfNeeded();
-                  tg.HapticFeedback.notificationOccurred('success');
-              }
-              return true; // Close popup
-          });
-      }
-      
-      // Helpers for TG popups
-      function showTgAlert(message) {
-          tg ? tg.showAlert(message) : alert(message);
-      }
-      function showTgConfirm(message, callback) {
-          tg ? tg.showConfirm(message, callback) : callback(confirm(message));
-      }
-      
-      function toggleMyLocationSpinner(isLoading) {
-          const btn = dom.btnMyLocation;
-          btn.querySelector('.spinner').classList.toggle('hidden', !isLoading);
-          btn.querySelector('.label').classList.toggle('hidden', isLoading);
-          btn.disabled = isLoading;
-      }
-
-      // ====== EVENT LISTENERS ======
-      dom.historyBtn.addEventListener('click', () => { renderHistory(); openModal(dom.historyModal); });
-      dom.profileBtn.addEventListener('click', () => { renderProfile(); openModal(dom.profileModal); });
-      dom.modalOverlay.addEventListener('click', closeModal);
-      dom.btnMyLocation.addEventListener('click', getCurrentUserLocation);
-      dom.btnPickOnMap.addEventListener('click', () => togglePickOnMapMode(!isPickOnMapMode));
-      // ... other event listeners for chips, tariffs, trip buttons, rating ...
-
-      // ====== STARTUP ======
-      appInit();
-
-    })();
     </script>
 </body>
 </html>
+
