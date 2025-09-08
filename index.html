@@ -5,48 +5,18 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
     <title>Такси Mini App</title>
     
-    <!-- Скрипт Tailwind CSS для стилизации -->
     <script src="https://cdn.tailwindcss.com"></script>
-    
-    <!-- Стили и скрипт Mapbox GL JS для карты -->
     <link href='https://api.mapbox.com/mapbox-gl-js/v3.4.0/mapbox-gl.css' rel='stylesheet' />
     <script src='https://api.mapbox.com/mapbox-gl-js/v3.4.0/mapbox-gl.js'></script>
-    
-    <!-- Скрипт для иконок Lucide -->
     <script src="https://unpkg.com/lucide@latest"></script>
-
-    <!-- Скрипт Telegram Web App для интеграции с Telegram -->
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    
-    <!-- Клиент Supabase -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
     <style>
-        body, html {
-            overscroll-behavior: none;
-            overflow: hidden;
-            height: 100%;
-            width: 100%;
-            margin: 0;
-            padding: 0;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-        }
-        .bottom-sheet {
-            touch-action: none;
-            transition: transform 0.3s ease-in-out;
-        }
-        .loader {
-            border: 4px solid #f3f3f3;
-            border-top: 4px solid #3b82f6;
-            border-radius: 50%;
-            width: 40px;
-            height: 40px;
-            animation: spin 1s linear infinite;
-        }
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
+        body, html { overscroll-behavior: none; overflow: hidden; height: 100%; width: 100%; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }
+        .bottom-sheet { touch-action: none; transition: transform 0.3s ease-in-out; }
+        .loader { border: 4px solid #f3f3f3; border-top: 4px solid #3b82f6; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
     </style>
 </head>
 <body class="bg-gray-100">
@@ -133,27 +103,23 @@
 
     <script>
         document.addEventListener('DOMContentLoaded', () => {
-            // --- CONSTANTS AND GLOBAL VARIABLES ---
             const SUPABASE_URL = 'https://skoobtvzeojdmvjsexdm.supabase.co';
-            const SUPABASE_ANON_KEY = 'eyJhbGciOiJIJWTJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNrb29idHZ6ZW9qZG12anNleGRtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTcyMTI5MjksImV4cCI6MjA3Mjc4ODkyOX0.3rtdGA9o07WUV8pKZctK4pA6VJyaUjn5MeZR-bigzP8';
+            const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNrb29idHZ6ZW9qZG12anNleGRtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTcyMTI5MjksImV4cCI6MjA3Mjc4ODkyOX0.3rtdGA9o07WUV8pKZctK4pA6VJyaUjn5MeZR-bigzP8';
             
             const globalLoader = document.getElementById('global-loader');
             const appContainer = document.getElementById('app-container');
             const loaderText = document.getElementById('loader-text');
             
-            // CORRECTED: Use a separate variable for the client instance
             let supabaseClient = null;
             let currentUser = null;
             let map = null;
             let realtimeChannel = null;
             let currentRideId = null;
 
-            // --- MAIN INITIALIZATION FUNCTION ---
             async function main() {
                 try {
                     console.log("Application starting...");
-                    
-                    if (typeof window.Telegram === 'undefined' || typeof window.Telegram.WebApp === 'undefined') {
+                    if (typeof window.Telegram === 'undefined' || !window.Telegram.WebApp.initData) {
                         showError("Ошибка: Приложение должно быть запущено внутри Telegram.", true);
                         return;
                     }
@@ -162,25 +128,21 @@
                     tg.expand();
                     console.log("Telegram environment is ready.");
 
-                    // CORRECTED: Correctly initialize the Supabase client
-                    // 'supabase' here is the global object from the script tag
                     supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
                     if (!supabaseClient) {
-                         showError("Не удалось инициализировать клиент Supabase.", true);
-                         return;
+                         showError("Не удалось инициализировать клиент Supabase.", true); return;
                     }
-                    console.log("Supabase client initialized successfully.");
+                    console.log("Supabase client initialized.");
 
                     loaderText.textContent = "Авторизация...";
                     const tgUser = tg.initDataUnsafe.user;
                     if (!tgUser) {
-                        showError("Не удалось получить данные пользователя Telegram.", true);
-                        return;
+                        showError("Не удалось получить данные пользователя Telegram.", true); return;
                     }
                     console.log("Got Telegram user data:", tgUser);
 
                     currentUser = await getOrCreateUser(tgUser);
-                    if (!currentUser) return; // Error is shown inside the function
+                    if (!currentUser) return; 
                     console.log("Database user profile:", currentUser);
 
                     loaderText.textContent = "Загрузка карты...";
@@ -204,87 +166,70 @@
                 }
             }
 
-            // --- USER FUNCTIONS ---
             async function getOrCreateUser(tgUser) {
                 try {
-                    let { data: user, error } = await supabaseClient
-                        .from('user_profiles')
-                        .select('*')
-                        .eq('telegram_id', tgUser.id)
-                        .single();
+                    let { data: user, error } = await supabaseClient.from('user_profiles').select('*').eq('telegram_id', tgUser.id).single();
 
                     if (error && error.code !== 'PGRST116') throw error;
 
                     if (!user) {
+                        console.log("User not found in DB, creating a new one...");
                         const fullName = `${tgUser.first_name || ''} ${tgUser.last_name || ''}`.trim();
-                        const { data: newUser, error: insertError } = await supabaseClient
-                            .from('user_profiles')
-                            .insert({
+                        const { data: newUser, error: insertError } = await supabaseClient.from('user_profiles').insert({
                                 id: crypto.randomUUID(),
                                 telegram_id: tgUser.id,
                                 full_name: fullName || tgUser.username || `User ${tgUser.id}`,
                                 role: 'passenger'
-                            })
-                            .select()
-                            .single();
+                            }).select().single();
                         
-                        if (insertError) throw insertError;
+                        if (insertError) throw insertError; // This is where RLS error would be caught
+                        console.log("New user created successfully:", newUser);
                         return newUser;
                     }
+                    console.log("User found in DB.");
                     return user;
                 } catch (error) {
+                    // УЛУЧШЕННОЕ ЛОГИРОВАНИЕ ОШИБКИ
                     console.error('Ошибка при поиске или создании пользователя:', error);
-                    showError("Ошибка при авторизации в базе данных.");
+                    showError(`Ошибка авторизации: ${error.message}`);
                     return null;
                 }
             }
             
             function initializeMap() {
                 mapboxgl.accessToken = 'pk.eyJ1IjoieXVuZ3JlemFjIiwiYSI6ImNtOW10ZzJ6bDBjNHUyanI3ejc5eXo1d2MifQ._tryk9cXjfReUGLGnNkm6Q';
-                map = new mapboxgl.Map({
-                    container: 'map',
-                    style: 'mapbox://styles/mapbox/streets-v12',
-                    center: [37.6173, 55.7558], zoom: 11, attributionControl: false
-                });
+                map = new mapboxgl.Map({ container: 'map', style: 'mapbox://styles/mapbox/streets-v12', center: [37.6173, 55.7558], zoom: 11, attributionControl: false });
                 map.addControl(new mapboxgl.NavigationControl(), 'top-right');
             }
 
-            // --- PASSENGER SCREEN LOGIC ---
             async function setupPassengerScreen() {
                 document.getElementById('passenger-screen').classList.remove('hidden');
-                
-                const orderButton = document.getElementById('order-button');
-                const cancelSearchButton = document.getElementById('cancel-search-button');
-                const fromInput = document.getElementById('from-input');
-                const toInput = document.getElementById('to-input');
-
                 setupBottomSheet(document.getElementById('bottom-sheet'), document.getElementById('sheet-handle'));
 
-                orderButton.addEventListener('click', async () => {
+                document.getElementById('order-button').addEventListener('click', async () => {
+                    const fromInput = document.getElementById('from-input');
+                    const toInput = document.getElementById('to-input');
                     if (!fromInput.value || !toInput.value) {
                         window.Telegram.WebApp.showAlert("Пожалуйста, укажите адреса 'Откуда' и 'Куда'.");
                         return;
                     }
                     switchPassengerState('searching-state');
                     try {
-                        const { data: ride, error } = await supabaseClient
-                            .from('rides').insert({
-                                passenger_id: currentUser.id,
-                                pickup_location: fromInput.value,
-                                destination_location: toInput.value,
-                                ride_status: 'requesting',
-                                fare_amount: Math.floor(Math.random() * (1000 - 300 + 1)) + 300
-                            }).select().single();
+                        const { data: ride, error } = await supabaseClient.from('rides').insert({
+                            passenger_id: currentUser.id, pickup_location: fromInput.value, destination_location: toInput.value,
+                            ride_status: 'requesting', fare_amount: Math.floor(Math.random() * 701) + 300
+                        }).select().single();
                         if (error) throw error;
                         currentRideId = ride.id;
                         subscribeToRideUpdates(ride.id);
                     } catch (error) {
-                        window.Telegram.WebApp.showAlert("Не удалось создать заказ. Попробуйте еще раз.");
+                        console.error("Ошибка создания заказа:", error);
+                        window.Telegram.WebApp.showAlert(`Не удалось создать заказ: ${error.message}`);
                         switchPassengerState('order-form-state');
                     }
                 });
                 
-                cancelSearchButton.addEventListener('click', async () => {
+                document.getElementById('cancel-search-button').addEventListener('click', async () => {
                    if (!currentRideId) return;
                    await supabaseClient.from('rides').update({ ride_status: 'cancelled' }).eq('id', currentRideId);
                    if(realtimeChannel) realtimeChannel.unsubscribe();
@@ -295,9 +240,7 @@
             }
 
             function switchPassengerState(state) {
-                ['order-form-state', 'searching-state', 'driver-found-state'].forEach(id => {
-                    document.getElementById(id).classList.add('hidden');
-                });
+                ['order-form-state', 'searching-state', 'driver-found-state'].forEach(id => document.getElementById(id).classList.add('hidden'));
                 const element = document.getElementById(state);
                 if(element) element.classList.remove('hidden');
             }
@@ -305,9 +248,8 @@
             function subscribeToRideUpdates(rideId) {
                 if (realtimeChannel) realtimeChannel.unsubscribe();
                 realtimeChannel = supabaseClient.channel(`ride-${rideId}`)
-                    .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'rides', filter: `id=eq.${rideId}` }, payload => {
-                        updatePassengerRideStatus(payload.new);
-                    }).subscribe();
+                    .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'rides', filter: `id=eq.${rideId}` }, payload => updatePassengerRideStatus(payload.new))
+                    .subscribe();
             }
 
             async function updatePassengerRideStatus(ride) {
@@ -333,7 +275,6 @@
                 }
             }
 
-            // --- DRIVER SCREEN LOGIC ---
             async function setupDriverScreen() {
                 document.getElementById('driver-screen').classList.remove('hidden');
                 document.getElementById('map').classList.add('hidden');
@@ -341,13 +282,10 @@
                 const statusText = document.getElementById('driver-status-text');
 
                 statusToggle.addEventListener('change', (e) => {
-                    if (e.target.checked) {
-                        statusText.textContent = 'На линии';
-                        statusText.classList.add('text-green-600');
-                        subscribeToRides();
-                    } else {
-                        statusText.textContent = 'Офлайн';
-                        statusText.classList.remove('text-green-600');
+                    statusText.textContent = e.target.checked ? 'На линии' : 'Офлайн';
+                    statusText.classList.toggle('text-green-600', e.target.checked);
+                    if (e.target.checked) subscribeToRides();
+                    else {
                         if (realtimeChannel) realtimeChannel.unsubscribe();
                         document.getElementById('orders-list').innerHTML = '';
                         document.getElementById('no-orders-placeholder').classList.remove('hidden');
@@ -360,10 +298,8 @@
                 renderAvailableRides();
                 if (realtimeChannel) realtimeChannel.unsubscribe();
                 realtimeChannel = supabaseClient.channel('public:rides')
-                  .on('postgres_changes', { event: '*', schema: 'public', table: 'rides' }, () => {
-                    checkActiveRide();
-                    renderAvailableRides();
-                  }).subscribe();
+                  .on('postgres_changes', { event: '*', schema: 'public', table: 'rides' }, () => { checkActiveRide(); renderAvailableRides(); })
+                  .subscribe();
             }
 
             async function renderAvailableRides() {
@@ -377,10 +313,7 @@
                 rides.forEach(ride => {
                     ordersList.insertAdjacentHTML('beforeend', `
                         <div class="bg-gray-50 border border-gray-200 p-4 rounded-lg shadow-sm">
-                            <div class="flex justify-between items-center">
-                                <p class="font-semibold">${ride.pickup_location}</p>
-                                <div class="text-lg font-bold text-blue-600 pl-4">${ride.fare_amount} ₽</div>
-                            </div>
+                            <div class="flex justify-between items-center"><p class="font-semibold">${ride.pickup_location}</p><div class="text-lg font-bold text-blue-600 pl-4">${ride.fare_amount} ₽</div></div>
                             <p class="text-sm text-gray-500">${ride.destination_location}</p>
                             <button data-ride-id="${ride.id}" class="accept-ride-btn mt-4 w-full bg-green-500 text-white font-bold py-2 rounded-lg hover:bg-green-600">Принять заказ</button>
                         </div>`);
@@ -389,26 +322,21 @@
             }
             
             async function acceptRide(event) {
-                event.target.disabled = true;
-                event.target.textContent = 'Принимаем...';
+                event.target.disabled = true; event.target.textContent = 'Принимаем...';
                 const { error } = await supabaseClient.from('rides').update({ driver_id: currentUser.id, ride_status: 'accepted' })
                     .eq('id', event.target.dataset.rideId).eq('ride_status', 'requesting');
                 if (error) {
                     window.Telegram.WebApp.showAlert('Не удалось принять заказ. Возможно, его уже кто-то взял.');
-                    event.target.disabled = false;
-                    event.target.textContent = 'Принять заказ';
+                    event.target.disabled = false; event.target.textContent = 'Принять заказ';
                 }
             }
             
             async function checkActiveRide() {
                 const { data: ride } = await supabaseClient.from('rides').select('*').eq('driver_id', currentUser.id).in('ride_status', ['accepted', 'enroute', 'in_progress']).maybeSingle();
-                const activeRideContainer = document.getElementById('active-ride-driver');
                 const isRideActive = !!ride;
-
                 document.getElementById('available-orders-title').classList.toggle('hidden', isRideActive);
                 document.getElementById('orders-list').classList.toggle('hidden', isRideActive);
-                activeRideContainer.classList.toggle('hidden', !isRideActive);
-
+                document.getElementById('active-ride-driver').classList.toggle('hidden', !isRideActive);
                 if (isRideActive) {
                     document.getElementById('active-ride-from').textContent = ride.pickup_location;
                     document.getElementById('active-ride-to').textContent = ride.destination_location;
@@ -435,7 +363,6 @@
                 container.lastChild.onclick = () => updateStatus('cancelled');
             }
             
-            // --- UTILITIES ---
             function showError(message, hideLoaderIcon = false) {
                 loaderText.innerHTML = `<span class="text-red-600 font-semibold text-center">${message}</span>`;
                 if(hideLoaderIcon) document.querySelector('#global-loader .loader').style.display = 'none';
@@ -448,7 +375,6 @@
                 });
             }
             
-            // --- START THE APP ---
             main();
         });
     </script>
