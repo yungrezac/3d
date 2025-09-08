@@ -25,24 +25,24 @@
         .mapboxgl-ctrl-geocoder--input { height: 48px !important; padding-left: 40px !important; background-color: #f3f4f6; border-radius: 0.5rem; border: transparent; }
         .mapboxgl-ctrl-geocoder--icon { top: 12px !important; left: 12px !important; }
         .custom-marker { display: flex; align-items: center; justify-content: center; background-color: #3b82f6; color: white; width: 30px; height: 30px; border-radius: 50%; border: 2px solid white; font-weight: bold; }
-        .screen { position: absolute; inset: 0; z-index: 20; background-color: #f9fafb; display: flex; flex-direction: column; transition: transform 0.3s ease-in-out; }
+        .screen { position: absolute; inset: 0; z-index: 30; background-color: #f9fafb; display: flex; flex-direction: column; transform: translateX(100%); transition: transform 0.3s ease-in-out; }
+        .screen.active { transform: translateX(0); }
     </style>
 </head>
 <body class="bg-gray-100">
 
-    <!-- Глобальный загрузчик -->
     <div id="global-loader" class="fixed inset-0 bg-white/80 backdrop-blur-sm flex flex-col justify-center items-center z-50 p-4">
         <div class="loader"></div>
         <p id="loader-text" class="mt-4 text-gray-600">Подключаемся...</p>
     </div>
 
-    <!-- Основной контейнер приложения -->
     <div id="app-container" class="relative h-screen w-screen hidden">
-        <div id="map" class="absolute inset-0"></div>
+        <!-- КАРТА ВСЕГДА НА ФОНЕ -->
+        <div id="map" class="absolute inset-0 z-0"></div>
 
-        <!-- Интерфейс Пассажира -->
-        <div id="passenger-screen" class="hidden">
-            <div id="bottom-sheet" class="bottom-sheet absolute bottom-0 left-0 right-0 bg-white rounded-t-2xl shadow-2xl p-4 flex flex-col z-10" style="transform: translateY(calc(100% - 300px));">
+        <!-- Интерфейс Пассажира (поверх карты) -->
+        <div id="passenger-ui" class="hidden z-10">
+            <div id="bottom-sheet" class="bottom-sheet absolute bottom-0 left-0 right-0 bg-white rounded-t-2xl shadow-2xl p-4 flex flex-col" style="transform: translateY(calc(100% - 300px));">
                 <div id="sheet-handle" class="w-12 h-1.5 bg-gray-300 rounded-full mx-auto mb-4 cursor-grab"></div>
                 <div id="sheet-content">
                     <div id="order-form-state"><h2 class="text-2xl font-bold text-gray-800 text-center mb-4">Куда поедем?</h2><div class="space-y-3"><div id="from-geocoder"></div><div id="to-geocoder"></div></div><button id="order-button" class="w-full bg-blue-600 text-white font-bold py-3.5 rounded-lg mt-5 transition-all disabled:bg-gray-400">Выберите адрес</button></div>
@@ -52,9 +52,9 @@
             </div>
         </div>
 
-        <!-- Интерфейс Водителя: Основной экран -->
-        <div id="driver-main-screen" class="hidden screen">
-            <div class="bg-white p-4 flex justify-between items-center border-b">
+        <!-- Интерфейс Водителя (поверх карты) -->
+        <div id="driver-ui" class="hidden z-20 h-full w-full flex flex-col pointer-events-none">
+            <div class="bg-white p-4 flex justify-between items-center border-b pointer-events-auto">
                 <h1 class="text-2xl font-bold">Заказы</h1>
                 <div class="flex items-center space-x-4">
                     <button id="profile-button"><i data-lucide="user-cog" class="w-6 h-6 text-gray-600"></i></button>
@@ -64,26 +64,23 @@
                     </div>
                 </div>
             </div>
-            <div id="driver-views" class="flex-grow relative">
-                <div id="driver-orders-view" class="absolute inset-0 flex flex-col bg-white">
-                    <h2 class="text-xl font-bold px-4 pt-4">Доступные заказы</h2>
-                    <div id="orders-list" class="flex-grow overflow-y-auto space-y-3 p-4">
-                        <div id="no-orders-placeholder" class="text-center py-10 text-gray-500"><i data-lucide="inbox" class="w-12 h-12 mx-auto"></i><p class="mt-2">Нет доступных заказов</p></div>
-                    </div>
-                </div>
-                <div id="driver-map-view" class="hidden absolute inset-0 flex flex-col">
-                    <div id="driver-map-container" class="flex-grow"></div>
-                    <div id="active-ride-details" class="p-4 bg-white border-t">
-                        <h2 class="text-xl font-bold mb-2">Активный заказ</h2>
-                        <div class="space-y-2 text-sm"><p><strong>Откуда:</strong> <span id="active-ride-from"></span></p><p><strong>Куда:</strong> <span id="active-ride-to"></span></p><p><strong>Стоимость:</strong> <span id="active-ride-fare" class="font-bold"></span> руб.</p></div>
-                        <div id="driver-action-buttons" class="mt-4 space-y-2"></div>
-                    </div>
+            <!-- Панель активного заказа -->
+            <div id="active-ride-panel" class="hidden p-4 bg-white border-b pointer-events-auto">
+                <h2 class="text-xl font-bold mb-2">Активный заказ</h2>
+                <div class="space-y-2 text-sm"><p><strong>Откуда:</strong> <span id="active-ride-from"></span></p><p><strong>Куда:</strong> <span id="active-ride-to"></span></p><p><strong>Стоимость:</strong> <span id="active-ride-fare" class="font-bold"></span> руб.</p></div>
+                <div id="driver-action-buttons" class="mt-4 space-y-2"></div>
+            </div>
+             <!-- Панель со списком заказов -->
+            <div id="orders-panel" class="flex-grow flex flex-col bg-white pointer-events-auto">
+                <h2 class="text-xl font-bold px-4 pt-4">Доступные заказы</h2>
+                <div id="orders-list" class="flex-grow overflow-y-auto space-y-3 p-4">
+                    <div id="no-orders-placeholder" class="text-center py-10 text-gray-500"><i data-lucide="inbox" class="w-12 h-12 mx-auto"></i><p class="mt-2">Нет доступных заказов</p></div>
                 </div>
             </div>
         </div>
         
-        <!-- Интерфейс Водителя: Экран профиля -->
-        <div id="driver-profile-screen" class="hidden screen">
+        <!-- Экран Профиля Водителя (выезжающий) -->
+        <div id="driver-profile-screen" class="screen">
             <div class="bg-white p-4 flex items-center border-b"><button id="back-to-orders-button"><i data-lucide="arrow-left" class="w-6 h-6"></i></button><h1 class="text-2xl font-bold text-center flex-grow mr-6">Мой автомобиль</h1></div>
             <div class="flex-grow overflow-y-auto p-4 space-y-4">
                 <div><label class="font-medium text-gray-700">Марка</label><input id="car-brand" type="text" placeholder="Например, Lada" class="w-full mt-1 p-2 bg-gray-100 rounded border focus:outline-none focus:ring-2 focus:ring-blue-500"></div>
@@ -95,7 +92,6 @@
             </div>
             <div class="p-4 border-t bg-white"><button id="save-vehicle-button" class="w-full bg-blue-600 text-white font-bold py-3 rounded-lg active:bg-blue-700">Сохранить</button></div>
         </div>
-
     </div>
 
 <script>
@@ -120,32 +116,26 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             console.log("Приложение запускается...");
             tg = window.Telegram?.WebApp;
-            if (!tg || !tg.initData) {
-                return showError("Пожалуйста, запустите приложение внутри Telegram.", true);
-            }
-            tg.ready(); 
-            tg.expand();
+            if (!tg || !tg.initData) return showError("Пожалуйста, запустите приложение внутри Telegram.", true);
+            tg.ready(); tg.expand();
 
             supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
             mapboxgl.accessToken = MAPBOX_TOKEN;
             
             showLoader("Авторизация...");
             const tgUser = tg.initDataUnsafe.user;
-            if (!tgUser) {
-                return showError("Не удалось получить данные пользователя Telegram.", true);
-            }
+            if (!tgUser) return showError("Не удалось получить данные пользователя Telegram.", true);
             currentUser = await getOrCreateUser(tgUser);
-            if (!currentUser) {
-                return; // Ошибка уже показана внутри функции
-            }
+            if (!currentUser) return;
 
             showLoader("Загрузка карты...");
             const userLocation = await getCurrentLocation();
-            
+            initializeMap(userLocation); // Карта инициализируется один раз для всех
+
             if (currentUser.role === 'driver') {
-                await setupDriverScreen(userLocation);
+                await setupDriverScreen();
             } else {
-                await setupPassengerScreen(userLocation);
+                await setupPassengerScreen();
             }
 
             hideLoader();
@@ -161,23 +151,14 @@ document.addEventListener('DOMContentLoaded', () => {
     async function getOrCreateUser(tgUser) {
         try {
             let { data, error } = await supabaseClient.from('user_profiles').select('*').eq('telegram_id', tgUser.id).single();
-            if (error && error.code !== 'PGRST116') {
-                throw error;
-            }
-            if (data) {
-                return data;
-            }
-            console.log("Создание нового пользователя...");
+            if (error && error.code !== 'PGRST116') throw error;
+            if (data) return data;
             const fullName = `${tgUser.first_name || ''} ${tgUser.last_name || ''}`.trim();
             const { data: newUser, error: insertError } = await supabaseClient.from('user_profiles').insert({ 
-                id: crypto.randomUUID(), 
-                telegram_id: tgUser.id, 
-                full_name: fullName || tgUser.username || `User ${tgUser.id}`, 
-                role: 'passenger' 
+                id: crypto.randomUUID(), telegram_id: tgUser.id, 
+                full_name: fullName || tgUser.username || `User ${tgUser.id}`, role: 'passenger' 
             }).select().single();
-            if (insertError) {
-                throw insertError;
-            }
+            if (insertError) throw insertError;
             return newUser;
         } catch (error) {
             console.error("Ошибка в getOrCreateUser:", error);
@@ -188,13 +169,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Карта и Геолокация ---
     function initializeMap(center) {
-        // Главная карта, которая будет использоваться и пассажиром, и водителем
-        const mapContainer = document.getElementById('map');
         map = new mapboxgl.Map({ 
-            container: mapContainer, 
-            style: 'mapbox://styles/mapbox/streets-v12', 
-            center: center, 
-            zoom: 14 
+            container: 'map', style: 'mapbox://styles/mapbox/streets-v12', 
+            center: center, zoom: 14 
         });
         map.addControl(new mapboxgl.NavigationControl(), 'top-right');
         map.addControl(new mapboxgl.GeolocateControl({ trackUserLocation: true }), 'top-right');
@@ -204,22 +181,18 @@ document.addEventListener('DOMContentLoaded', () => {
         return new Promise((resolve) => {
             const fallback = () => resolve([37.6173, 55.7558]);
             const success = (pos) => resolve([pos.coords.longitude, pos.coords.latitude]);
-            const error = (err) => { 
-                console.warn(`Ошибка геолокации: ${err.message}`); 
-                fallback(); 
-            };
+            const error = (err) => { console.warn(`Ошибка геолокации: ${err.message}`); fallback(); };
             const watchId = setTimeout(fallback, 10000);
             navigator.geolocation.getCurrentPosition(
-                (pos) => { clearTimeout(watchId); success(pos); }, 
-                error, 
+                (pos) => { clearTimeout(watchId); success(pos); }, error, 
                 { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
             );
         });
     }
 
     // --- Интерфейс и логика Пассажира ---
-    async function setupPassengerScreen(userLocation) {
-        showScreen('passenger-screen');
+    async function setupPassengerScreen() {
+        document.getElementById('passenger-ui').classList.remove('hidden');
         const orderButton = document.getElementById('order-button');
         orderButton.disabled = true;
 
@@ -229,42 +202,26 @@ document.addEventListener('DOMContentLoaded', () => {
         const toGeocoder = new MapboxGeocoder(geocoderOptions('Куда'));
         document.getElementById('to-geocoder').appendChild(toGeocoder.onAdd(map));
 
-        fromCoords = userLocation;
+        // Устанавливаем начальный адрес на основе геолокации, которая уже есть
+        fromCoords = map.getCenter().toArray();
         fromAddress = await geocodeReverse(fromCoords);
         fromGeocoder.setInput(fromAddress || '');
         updateMapMarkers();
 
-        fromGeocoder.on('result', (e) => { 
-            fromCoords = e.result.geometry.coordinates; 
-            fromAddress = e.result.place_name; 
-            updateMapMarkers(); 
-            calculateAndDisplayFare(); 
-        });
-        toGeocoder.on('result', (e) => { 
-            toCoords = e.result.geometry.coordinates; 
-            toAddress = e.result.place_name; 
-            updateMapMarkers(); 
-            calculateAndDisplayFare(); 
-        });
+        fromGeocoder.on('result', (e) => { fromCoords = e.result.geometry.coordinates; fromAddress = e.result.place_name; updateMapMarkers(); calculateAndDisplayFare(); });
+        toGeocoder.on('result', (e) => { toCoords = e.result.geometry.coordinates; toAddress = e.result.place_name; updateMapMarkers(); calculateAndDisplayFare(); });
         
         orderButton.onclick = createRide;
         document.getElementById('cancel-search-button').onclick = cancelRide;
     }
-
+    
     // --- Интерфейс и логика Водителя ---
-    async function setupDriverScreen(userLocation) {
-        showScreen('driver-main-screen');
-        // Перемещаем карту в контейнер водителя
-        document.getElementById('driver-map-container').appendChild(document.getElementById('map'));
-        map.resize();
-
+    async function setupDriverScreen() {
+        document.getElementById('driver-ui').classList.remove('hidden');
         await checkDriverVehicle();
 
-        document.getElementById('profile-button').onclick = showProfileScreen;
-        document.getElementById('back-to-orders-button').onclick = () => { 
-            showScreen('driver-main-screen'); 
-            checkActiveRide(); 
-        };
+        document.getElementById('profile-button').onclick = () => document.getElementById('driver-profile-screen').classList.add('active');
+        document.getElementById('back-to-orders-button').onclick = () => document.getElementById('driver-profile-screen').classList.remove('active');
         document.getElementById('save-vehicle-button').onclick = saveVehicleData;
         
         const statusToggle = document.getElementById('driver-status-toggle');
@@ -286,10 +243,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 subscribeToNewRides();
                 startSendingLocation();
             } else {
-                if (rideUpdateChannel) {
-                    rideUpdateChannel.unsubscribe();
-                    rideUpdateChannel = null;
-                }
+                if (rideUpdateChannel) rideUpdateChannel.unsubscribe();
                 stopSendingLocation();
                 document.getElementById('orders-list').innerHTML = '';
                 document.getElementById('no-orders-placeholder').classList.remove('hidden');
@@ -298,14 +252,12 @@ document.addEventListener('DOMContentLoaded', () => {
         await checkActiveRide();
     }
     
-    // --- Остальные функции (полностью развернуты) ---
-
     async function checkDriverVehicle() {
         const { data } = await supabaseClient.from('vehicles').select('id').eq('driver_id', currentUser.id).limit(1).single();
         driverHasVehicle = !!data;
         const placeholder = document.getElementById('no-orders-placeholder');
         if (!driverHasVehicle) {
-            placeholder.innerHTML = `<i data-lucide="car-front" class="w-12 h-12 mx-auto"></i><p class="mt-2">Добавьте автомобиль в профиле, чтобы принимать заказы.</p>`;
+            placeholder.innerHTML = `<i data-lucide="car-front" class="w-12 h-12 mx-auto"></i><p class="mt-2">Добавьте автомобиль в профиле.</p>`;
         } else {
              placeholder.innerHTML = `<i data-lucide="inbox" class="w-12 h-12 mx-auto"></i><p class="mt-2">Нет доступных заказов</p>`;
         }
@@ -313,7 +265,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function showProfileScreen() {
-        showScreen('driver-profile-screen');
+        document.getElementById('driver-profile-screen').classList.add('active');
         const { data } = await supabaseClient.from('vehicles').select('*').eq('driver_id', currentUser.id).single();
         if (data) {
             document.getElementById('car-brand').value = data.brand || '';
@@ -327,8 +279,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
     async function saveVehicleData() {
         const button = document.getElementById('save-vehicle-button');
-        button.disabled = true; 
-        button.textContent = "Сохранение...";
+        button.disabled = true; button.textContent = "Сохранение...";
         const vehicleData = {
             driver_id: currentUser.id, brand: document.getElementById('car-brand').value,
             model: document.getElementById('car-model').value, year: document.getElementById('car-year').value,
@@ -345,25 +296,17 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
             tg.showPopup({ title: "Успешно!", message: "Данные об автомобиле сохранены." });
             await checkDriverVehicle();
-            showScreen('driver-main-screen');
+            document.getElementById('driver-profile-screen').classList.remove('active');
         }
         button.disabled = false; button.textContent = "Сохранить";
     }
 
     async function calculateAndDisplayFare() {
         const orderButton = document.getElementById('order-button');
-        if (!fromCoords || !toCoords) { 
-            orderButton.disabled = true; 
-            orderButton.textContent = 'Выберите адрес'; 
-            return; 
-        }
-        orderButton.disabled = true; 
-        orderButton.textContent = 'Расчет...';
+        if (!fromCoords || !toCoords) { orderButton.disabled = true; orderButton.textContent = 'Выберите адрес'; return; }
+        orderButton.disabled = true; orderButton.textContent = 'Расчет...';
         const data = await getDirections(fromCoords, toCoords);
-        if (!data || !data.routes || data.routes.length === 0) { 
-            orderButton.textContent = 'Маршрут не найден'; 
-            return; 
-        }
+        if (!data || !data.routes || data.routes.length === 0) { orderButton.textContent = 'Маршрут не найден'; return; }
         const route = data.routes[0];
         const fare = FARE_CONFIG.base + ((route.distance / 1000) * FARE_CONFIG.perKm) + ((route.duration / 60) * FARE_CONFIG.perMin);
         const roundedFare = Math.ceil(fare / 10) * 10;
@@ -399,19 +342,14 @@ document.addEventListener('DOMContentLoaded', () => {
     
     function subscribeToNewRides() {
         renderAvailableRides();
-        if (rideUpdateChannel) {
-            rideUpdateChannel.unsubscribe();
-        }
+        if (rideUpdateChannel) rideUpdateChannel.unsubscribe();
         rideUpdateChannel = supabaseClient.channel('public:rides')
           .on('postgres_changes', { event: '*', schema: 'public', table: 'rides' }, (payload) => {
-              console.log('Изменение в rides:', payload);
               renderAvailableRides();
               checkActiveRide();
           })
           .subscribe((status) => {
-              if (status === 'SUBSCRIBED') {
-                  console.log('Подписан на заказы!');
-              }
+              if (status === 'SUBSCRIBED') console.log('Успешно подписан на заказы!');
           });
     }
 
@@ -437,24 +375,20 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     async function acceptRide(event) {
-        event.target.disabled = true; 
-        event.target.textContent = 'Принимаю...';
+        event.target.disabled = true; event.target.textContent = 'Принимаю...';
         const rideId = event.target.dataset.rideId;
         const { error } = await supabaseClient.from('rides').update({ driver_id: currentUser.id, ride_status: 'accepted' }).eq('id', rideId).eq('ride_status', 'requesting');
-        if (error) { 
-            tg.showAlert('Не удалось принять заказ. Возможно, его уже забрали.'); 
-            event.target.disabled = false; 
-            event.target.textContent = 'Принять'; 
-        }
+        if (error) { tg.showAlert('Не удалось принять заказ. Возможно, его уже забрали.'); event.target.disabled = false; event.target.textContent = 'Принять'; }
     }
     
     async function checkActiveRide() {
         const { data: ride } = await supabaseClient.from('rides').select('*').eq('driver_id', currentUser.id).in('ride_status', ['accepted', 'enroute', 'in_progress']).maybeSingle();
         const isActive = !!ride;
+        
+        document.getElementById('orders-panel').classList.toggle('hidden', isActive);
+        document.getElementById('active-ride-panel').classList.toggle('hidden', !isActive);
 
         if (isActive) {
-            document.getElementById('driver-orders-view').classList.add('hidden');
-            document.getElementById('driver-map-view').classList.remove('hidden');
             document.getElementById('active-ride-from').textContent = ride.pickup_location;
             document.getElementById('active-ride-to').textContent = ride.destination_location;
             document.getElementById('active-ride-fare').textContent = ride.fare_amount;
@@ -466,9 +400,6 @@ document.addEventListener('DOMContentLoaded', () => {
             } else if (ride.ride_status === 'in_progress') {
                 drawTripRoute(driverCurrentLocation || passengerCoords, destinationCoords, 'driver-route');
             }
-        } else {
-            document.getElementById('driver-orders-view').classList.remove('hidden');
-            document.getElementById('driver-map-view').classList.add('hidden');
         }
     }
     
@@ -520,20 +451,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 driverCurrentLocation = [pos.coords.longitude, pos.coords.latitude];
                 locationChannel.send({ type: 'broadcast', event: 'location_update', payload: { lon: pos.coords.longitude, lat: pos.coords.latitude } });
             }, 
-            console.error, 
-            { enableHighAccuracy: true }
+            console.error, { enableHighAccuracy: true }
         );
     }
 
     function stopSendingLocation() {
-        if (driverLocationWatcherId) {
-            navigator.geolocation.clearWatch(driverLocationWatcherId);
-            driverLocationWatcherId = null;
-        }
-        if (locationChannel) {
-            locationChannel.unsubscribe();
-            locationChannel = null;
-        }
+        if (driverLocationWatcherId) { navigator.geolocation.clearWatch(driverLocationWatcherId); driverLocationWatcherId = null; }
+        if (locationChannel) { locationChannel.unsubscribe(); locationChannel = null; }
         driverCurrentLocation = null;
     }
 
@@ -542,11 +466,8 @@ document.addEventListener('DOMContentLoaded', () => {
         locationChannel = supabaseClient.channel(`driver-${driverId}`)
             .on('broadcast', { event: 'location_update' }, ({ payload }) => {
                 const driverCoords = [payload.lon, payload.lat];
-                if (!driverMarker) {
-                    driverMarker = createMarker('', driverCoords, true).addTo(map);
-                } else {
-                    driverMarker.setLngLat(driverCoords);
-                }
+                if (!driverMarker) driverMarker = createMarker('', driverCoords, true).addTo(map);
+                else driverMarker.setLngLat(driverCoords);
                 drawTripRoute(driverCoords, destination, 'driver-route');
             }).subscribe();
     }
@@ -569,11 +490,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const data = await getDirections(start, end);
         if (!data || !data.routes || !data.routes.length) return;
         const route = data.routes[0].geometry;
-        if (map.getSource(routeId)) {
-            map.getSource(routeId).setData(route);
-        } else {
-            map.addLayer({ id: routeId, type: 'line', source: { type: 'geojson', data: route }, paint: { 'line-color': '#3b82f6', 'line-width': 6, 'line-opacity': 0.8 } });
-        }
+        if (map.getSource(routeId)) { map.getSource(routeId).setData(route); } 
+        else { map.addLayer({ id: routeId, type: 'line', source: { type: 'geojson', data: route }, paint: { 'line-color': '#3b82f6', 'line-width': 6, 'line-opacity': 0.8 } }); }
     }
     
     async function geocodeReverse(coords) {
@@ -592,66 +510,22 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (e) { console.error("Ошибка API маршрутов:", e); return null; }
     }
     
-    function showLoader(text) {
-        document.getElementById('loader-text').textContent = text;
-        document.getElementById('global-loader').classList.remove('hidden');
-    }
-
-    function hideLoader() {
-        document.getElementById('global-loader').classList.add('hidden');
-        document.getElementById('app-container').classList.remove('hidden');
-    }
-
-    function showError(message, isCritical = false) {
-        const loader = document.getElementById('global-loader');
-        loader.classList.remove('hidden');
-        document.getElementById('loader-text').innerHTML = `<span class="text-red-600 font-semibold text-center">${message}</span>`;
-        if (isCritical) {
-            loader.querySelector('.loader').style.display = 'none';
-        }
-    }
-
-    function showScreen(screenId) {
-        document.querySelectorAll('.screen, #passenger-screen').forEach(s => s.classList.add('hidden'));
-        const screen = document.getElementById(screenId);
-        if (screen) {
-            screen.classList.remove('hidden');
-        }
-    }
-
-    function switchPassengerState(state) {
-        ['order-form-state', 'searching-state', 'driver-found-state'].forEach(id => {
-            document.getElementById(id).classList.add('hidden');
-        });
-        const stateElement = document.getElementById(state);
-        if (stateElement) {
-            stateElement.classList.remove('hidden');
-        }
-    }
-
+    function showLoader(text) { document.getElementById('loader-text').textContent = text; document.getElementById('global-loader').classList.remove('hidden'); }
+    function hideLoader() { document.getElementById('global-loader').classList.add('hidden'); document.getElementById('app-container').classList.remove('hidden'); }
+    function showError(message, isCritical = false) { const loader = document.getElementById('global-loader'); loader.classList.remove('hidden'); document.getElementById('loader-text').innerHTML = `<span class="text-red-600 font-semibold text-center">${message}</span>`; if(isCritical) loader.querySelector('.loader').style.display = 'none'; }
+    function showScreen(screenId) { document.querySelectorAll('.screen, #passenger-ui').forEach(s => s.classList.add('hidden')); document.getElementById(screenId)?.classList.remove('hidden'); }
+    function switchPassengerState(state) { ['order-form-state', 'searching-state', 'driver-found-state'].forEach(id => document.getElementById(id).classList.add('hidden')); document.getElementById(state)?.classList.remove('hidden'); }
     function cleanupAfterRide() {
         if (rideUpdateChannel) rideUpdateChannel.unsubscribe();
         if (locationChannel) locationChannel.unsubscribe();
         if (driverMarker) { driverMarker.remove(); driverMarker = null; }
         if (fromMarker) { fromMarker.remove(); fromMarker = null; }
         if (toMarker) { toMarker.remove(); toMarker = null; }
-        ['trip-preview', 'driver-route'].forEach(id => {
-            if (map.getLayer(id)) { map.removeLayer(id); }
-            if (map.getSource(id)) { map.removeSource(id); }
-        });
+        ['trip-preview', 'driver-route'].forEach(id => { if (map.getLayer(id)) map.removeLayer(id); if (map.getSource(id)) map.removeSource(id); });
         currentRideId = null;
     }
-
-    function createMarker(text, coords, isDriver = false) {
-        const el = document.createElement('div');
-        el.className = isDriver ? 'driver-marker' : 'custom-marker';
-        if (!isDriver) {
-            el.textContent = text;
-        }
-        return new mapboxgl.Marker(el).setLngLat(coords);
-    }
+    function createMarker(text, coords, isDriver = false) { const el = document.createElement('div'); el.className = isDriver ? 'driver-marker' : 'custom-marker'; if (!isDriver) el.textContent = text; return new mapboxgl.Marker(el).setLngLat(coords); }
     
-    // --- Запуск приложения ---
     main();
 });
 </script>
