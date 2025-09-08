@@ -22,7 +22,6 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
     <style>
-        /* Дополнительные стили для плавности и корректного отображения */
         body, html {
             overscroll-behavior: none;
             overflow: hidden;
@@ -33,18 +32,12 @@
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
         }
         .bottom-sheet {
-            touch-action: none; /* Отключаем стандартные действия браузера при касании */
+            touch-action: none;
             transition: transform 0.3s ease-in-out;
         }
-        /* Убираем стрелочки у инпутов с типом number */
-        input[type="number"]::-webkit-inner-spin-button,
-        input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
-        input[type="number"] { -moz-appearance: textfield; }
-
-        /* Стили для лоадера */
         .loader {
             border: 4px solid #f3f3f3;
-            border-top: 4px solid #3b82f6; /* Tailwind blue-500 */
+            border-top: 4px solid #3b82f6;
             border-radius: 50%;
             width: 40px;
             height: 40px;
@@ -58,30 +51,19 @@
 </head>
 <body class="bg-gray-100">
 
-    <!-- Глобальный лоадер на время инициализации -->
     <div id="global-loader" class="fixed inset-0 bg-white/80 backdrop-blur-sm flex flex-col justify-center items-center z-50 p-4">
         <div class="loader"></div>
         <p id="loader-text" class="mt-4 text-gray-600">Подключаемся...</p>
     </div>
 
-    <!-- Основной контейнер приложения -->
     <div id="app-container" class="relative h-screen w-screen hidden">
-        
-        <!-- Контейнер для карты, он будет на заднем плане -->
         <div id="map" class="absolute inset-0"></div>
 
-        <!-- ======================================================= -->
-        <!-- ============ ЭКРАН ПАССАЖИРА (PASSENGER) ============== -->
-        <!-- ======================================================= -->
+        <!-- EKRAN PASSAZHIRA -->
         <div id="passenger-screen" class="hidden">
-             <!-- Модальное окно (Bottom Sheet), которое выдвигается снизу -->
             <div id="bottom-sheet" class="bottom-sheet absolute bottom-0 left-0 right-0 bg-white rounded-t-2xl shadow-2xl p-4 flex flex-col z-10" style="transform: translateY(calc(100% - 280px));">
-                <!-- "Ручка" для управления окном -->
                 <div id="sheet-handle" class="w-12 h-1.5 bg-gray-300 rounded-full mx-auto mb-4 cursor-grab active:cursor-grabbing"></div>
-
-                <!-- Контент меняется в зависимости от состояния -->
                 <div id="sheet-content">
-                    <!-- Состояние 1: Форма заказа -->
                     <div id="order-form-state">
                         <h2 class="text-2xl font-bold text-gray-800 text-center mb-4">Куда поедем?</h2>
                         <div class="space-y-3">
@@ -94,22 +76,13 @@
                                 <input id="to-input" type="text" placeholder="Куда" class="w-full bg-gray-100 border-transparent rounded-lg pl-10 pr-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500">
                             </div>
                         </div>
-                        <button id="order-button" class="w-full bg-blue-600 text-white font-bold py-3.5 rounded-lg mt-5 hover:bg-blue-700 active:bg-blue-800 transition-colors disabled:bg-gray-400">
-                            Заказать такси
-                        </button>
+                        <button id="order-button" class="w-full bg-blue-600 text-white font-bold py-3.5 rounded-lg mt-5 hover:bg-blue-700 active:bg-blue-800 transition-colors">Заказать такси</button>
                     </div>
-
-                    <!-- Состояние 2: Поиск машины -->
                     <div id="searching-state" class="hidden text-center py-8">
                         <div class="loader mx-auto"></div>
                         <h3 class="text-xl font-semibold mt-4">Ищем машину...</h3>
-                        <p class="text-gray-500 mt-1">Это займет немного времени.</p>
-                        <button id="cancel-search-button" class="w-full bg-red-600 text-white font-bold py-3.5 rounded-lg mt-6 hover:bg-red-700 active:bg-red-800 transition-colors">
-                            Отменить поиск
-                        </button>
+                        <button id="cancel-search-button" class="w-full bg-red-600 text-white font-bold py-3.5 rounded-lg mt-6 hover:bg-red-700">Отменить поиск</button>
                     </div>
-
-                    <!-- Состояние 3: Водитель найден -->
                     <div id="driver-found-state" class="hidden">
                          <h2 class="text-2xl font-bold text-gray-800 text-center mb-2">Водитель найден!</h2>
                          <p id="driver-arrival-time" class="text-center text-gray-500 mb-4">Машина будет через 5 минут</p>
@@ -119,21 +92,15 @@
                                  <p id="driver-name" class="font-bold text-lg">Водитель</p>
                                  <p id="driver-car" class="text-gray-600">Машина</p>
                              </div>
-                             <div class="flex-grow text-right">
-                                 <p id="driver-car-plate" class="font-mono bg-white border border-gray-300 px-2 py-1 rounded">A123BC</p>
-                             </div>
+                             <div class="flex-grow text-right"><p id="driver-car-plate" class="font-mono bg-white border border-gray-300 px-2 py-1 rounded">A123BC</p></div>
                          </div>
-                         <div class="mt-4 text-center">
-                            <p id="ride-status-passenger" class="text-lg font-medium text-blue-600">Водитель едет к вам</p>
-                         </div>
+                         <div class="mt-4 text-center"><p id="ride-status-passenger" class="text-lg font-medium text-blue-600">Водитель едет к вам</p></div>
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- ======================================================= -->
-        <!-- ============== ЭКРАН ВОДИТЕЛЯ (DRIVER) ================ -->
-        <!-- ======================================================= -->
+        <!-- EKRAN VODITELYA -->
         <div id="driver-screen" class="hidden w-full h-full flex flex-col p-4 bg-white z-20 absolute inset-0">
             <div class="flex justify-between items-center mb-4">
                 <h1 class="text-2xl font-bold">Заказы</h1>
@@ -145,7 +112,6 @@
                     </label>
                 </div>
             </div>
-            
             <div id="active-ride-driver" class="hidden border-2 border-blue-500 rounded-lg p-4 mb-4">
                 <h2 class="text-xl font-bold mb-2">Активный заказ</h2>
                  <div class="space-y-2">
@@ -155,7 +121,6 @@
                 </div>
                 <div id="driver-action-buttons" class="mt-4 space-y-2"></div>
             </div>
-
             <h2 id="available-orders-title" class="text-xl font-bold mb-2">Доступные заказы</h2>
             <div id="orders-list" class="flex-grow overflow-y-auto space-y-3 pb-4">
                 <div id="no-orders-placeholder" class="text-center py-10 text-gray-500">
@@ -168,29 +133,28 @@
 
     <script>
         document.addEventListener('DOMContentLoaded', () => {
-            // --- Константы и глобальные переменные ---
+            // --- CONSTANTS AND GLOBAL VARIABLES ---
             const SUPABASE_URL = 'https://skoobtvzeojdmvjsexdm.supabase.co';
-            const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNrb29idHZ6ZW9qZG12anNleGRtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTcyMTI5MjksImV4cCI6MjA3Mjc4ODkyOX0.3rtdGA9o07WUV8pKZctK4pA6VJyaUjn5MeZR-bigzP8';
+            const SUPABASE_ANON_KEY = 'eyJhbGciOiJIJWTJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNrb29idHZ6ZW9qZG12anNleGRtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTcyMTI5MjksImV4cCI6MjA3Mjc4ODkyOX0.3rtdGA9o07WUV8pKZctK4pA6VJyaUjn5MeZR-bigzP8';
             
             const globalLoader = document.getElementById('global-loader');
             const appContainer = document.getElementById('app-container');
             const loaderText = document.getElementById('loader-text');
             
-            let supabase;
+            // CORRECTED: Use a separate variable for the client instance
+            let supabaseClient = null;
             let currentUser = null;
             let map = null;
             let realtimeChannel = null;
             let currentRideId = null;
 
-            // --- Главная функция инициализации ---
+            // --- MAIN INITIALIZATION FUNCTION ---
             async function main() {
                 try {
                     console.log("Application starting...");
                     
-                    // ИСПРАВЛЕНИЕ: Проверяем, что мы внутри Telegram
                     if (typeof window.Telegram === 'undefined' || typeof window.Telegram.WebApp === 'undefined') {
                         showError("Ошибка: Приложение должно быть запущено внутри Telegram.", true);
-                        console.error("Telegram Web App environment not found.");
                         return;
                     }
                     const tg = window.Telegram.WebApp;
@@ -198,23 +162,25 @@
                     tg.expand();
                     console.log("Telegram environment is ready.");
 
-                    // Инициализация Supabase
-                    supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-                    console.log("Supabase client initialized.");
+                    // CORRECTED: Correctly initialize the Supabase client
+                    // 'supabase' here is the global object from the script tag
+                    supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+                    if (!supabaseClient) {
+                         showError("Не удалось инициализировать клиент Supabase.", true);
+                         return;
+                    }
+                    console.log("Supabase client initialized successfully.");
 
                     loaderText.textContent = "Авторизация...";
                     const tgUser = tg.initDataUnsafe.user;
                     if (!tgUser) {
-                        showError("Не удалось получить данные пользователя Telegram. Попробуйте перезапустить приложение.", true);
+                        showError("Не удалось получить данные пользователя Telegram.", true);
                         return;
                     }
                     console.log("Got Telegram user data:", tgUser);
 
                     currentUser = await getOrCreateUser(tgUser);
-                    if (!currentUser) {
-                        // showError уже вызывается внутри getOrCreateUser
-                        return;
-                    }
+                    if (!currentUser) return; // Error is shown inside the function
                     console.log("Database user profile:", currentUser);
 
                     loaderText.textContent = "Загрузка карты...";
@@ -238,23 +204,20 @@
                 }
             }
 
-            // --- Функции для работы с пользователем ---
+            // --- USER FUNCTIONS ---
             async function getOrCreateUser(tgUser) {
                 try {
-                    let { data: user, error } = await supabase
+                    let { data: user, error } = await supabaseClient
                         .from('user_profiles')
                         .select('*')
                         .eq('telegram_id', tgUser.id)
                         .single();
 
-                    if (error && error.code !== 'PGRST116') { // PGRST116 - это "не найдена одна строка"
-                        throw error;
-                    }
+                    if (error && error.code !== 'PGRST116') throw error;
 
                     if (!user) {
-                        console.log("User not found, creating a new profile...");
                         const fullName = `${tgUser.first_name || ''} ${tgUser.last_name || ''}`.trim();
-                        const { data: newUser, error: insertError } = await supabase
+                        const { data: newUser, error: insertError } = await supabaseClient
                             .from('user_profiles')
                             .insert({
                                 id: crypto.randomUUID(),
@@ -266,10 +229,8 @@
                             .single();
                         
                         if (insertError) throw insertError;
-                        console.log("New user created:", newUser);
                         return newUser;
                     }
-                    
                     return user;
                 } catch (error) {
                     console.error('Ошибка при поиске или создании пользователя:', error);
@@ -278,22 +239,17 @@
                 }
             }
             
-            // --- Инициализация карты ---
             function initializeMap() {
                 mapboxgl.accessToken = 'pk.eyJ1IjoieXVuZ3JlemFjIiwiYSI6ImNtOW10ZzJ6bDBjNHUyanI3ejc5eXo1d2MifQ._tryk9cXjfReUGLGnNkm6Q';
                 map = new mapboxgl.Map({
                     container: 'map',
                     style: 'mapbox://styles/mapbox/streets-v12',
-                    center: [37.6173, 55.7558],
-                    zoom: 11,
-                    attributionControl: false
+                    center: [37.6173, 55.7558], zoom: 11, attributionControl: false
                 });
                 map.addControl(new mapboxgl.NavigationControl(), 'top-right');
             }
 
-            // =======================================================
-            // ============ ЛОГИКА ЭКРАНА ПАССАЖИРА ==================
-            // =======================================================
+            // --- PASSENGER SCREEN LOGIC ---
             async function setupPassengerScreen() {
                 document.getElementById('passenger-screen').classList.remove('hidden');
                 
@@ -309,29 +265,20 @@
                         window.Telegram.WebApp.showAlert("Пожалуйста, укажите адреса 'Откуда' и 'Куда'.");
                         return;
                     }
-                    
                     switchPassengerState('searching-state');
-                    
                     try {
-                        const { data: ride, error } = await supabase
-                            .from('rides')
-                            .insert({
+                        const { data: ride, error } = await supabaseClient
+                            .from('rides').insert({
                                 passenger_id: currentUser.id,
                                 pickup_location: fromInput.value,
                                 destination_location: toInput.value,
                                 ride_status: 'requesting',
                                 fare_amount: Math.floor(Math.random() * (1000 - 300 + 1)) + 300
-                            })
-                            .select()
-                            .single();
-
+                            }).select().single();
                         if (error) throw error;
-                        
                         currentRideId = ride.id;
                         subscribeToRideUpdates(ride.id);
-
                     } catch (error) {
-                        console.error("Ошибка создания заказа:", error);
                         window.Telegram.WebApp.showAlert("Не удалось создать заказ. Попробуйте еще раз.");
                         switchPassengerState('order-form-state');
                     }
@@ -339,8 +286,7 @@
                 
                 cancelSearchButton.addEventListener('click', async () => {
                    if (!currentRideId) return;
-                   
-                   await supabase.from('rides').update({ ride_status: 'cancelled' }).eq('id', currentRideId);
+                   await supabaseClient.from('rides').update({ ride_status: 'cancelled' }).eq('id', currentRideId);
                    if(realtimeChannel) realtimeChannel.unsubscribe();
                    switchPassengerState('order-form-state');
                    window.Telegram.WebApp.showPopup({ title: 'Отменено', message: 'Заказ был отменен.' });
@@ -349,48 +295,31 @@
             }
 
             function switchPassengerState(state) {
-                document.getElementById('order-form-state').classList.add('hidden');
-                document.getElementById('searching-state').classList.add('hidden');
-                document.getElementById('driver-found-state').classList.add('hidden');
-                
+                ['order-form-state', 'searching-state', 'driver-found-state'].forEach(id => {
+                    document.getElementById(id).classList.add('hidden');
+                });
                 const element = document.getElementById(state);
-                if(element) {
-                   element.classList.remove('hidden');
-                } else {
-                    document.getElementById('order-form-state').classList.remove('hidden');
-                }
+                if(element) element.classList.remove('hidden');
             }
             
             function subscribeToRideUpdates(rideId) {
                 if (realtimeChannel) realtimeChannel.unsubscribe();
-                
-                realtimeChannel = supabase.channel(`ride-${rideId}`)
+                realtimeChannel = supabaseClient.channel(`ride-${rideId}`)
                     .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'rides', filter: `id=eq.${rideId}` }, payload => {
-                        console.log('Статус поездки обновлен:', payload.new);
                         updatePassengerRideStatus(payload.new);
-                    })
-                    .subscribe();
+                    }).subscribe();
             }
 
             async function updatePassengerRideStatus(ride) {
                 const status = ride.ride_status;
-                const rideInProgressStatuses = ['accepted', 'enroute', 'in_progress'];
-                
-                if (rideInProgressStatuses.includes(status)) {
+                if (['accepted', 'enroute', 'in_progress'].includes(status)) {
                     switchPassengerState('driver-found-state');
-                    
-                    const { data: driver } = await supabase.from('user_profiles').select('full_name').eq('id', ride.driver_id).single();
-                    const { data: vehicle } = await supabase.from('vehicles').select('brand, model, color, plate_number').eq('driver_id', ride.driver_id).single();
-
-                    document.getElementById('driver-name').textContent = driver ? driver.full_name : 'Неизвестно';
+                    const { data: driver } = await supabaseClient.from('user_profiles').select('full_name').eq('id', ride.driver_id).single();
+                    const { data: vehicle } = await supabaseClient.from('vehicles').select('brand, model, color, plate_number').eq('driver_id', ride.driver_id).single();
+                    document.getElementById('driver-name').textContent = driver?.full_name || 'Неизвестно';
                     document.getElementById('driver-car').textContent = vehicle ? `${vehicle.color} ${vehicle.brand} ${vehicle.model}` : 'Машина';
-                    document.getElementById('driver-car-plate').textContent = vehicle ? vehicle.plate_number : '...';
-
-                    const statusText = {
-                        'accepted': 'Водитель принял заказ',
-                        'enroute': 'Водитель едет к вам',
-                        'in_progress': 'В пути к месту назначения',
-                    };
+                    document.getElementById('driver-car-plate').textContent = vehicle?.plate_number || '...';
+                    const statusText = {'accepted': 'Водитель принял заказ', 'enroute': 'Водитель едет к вам', 'in_progress': 'В пути'};
                     document.getElementById('ride-status-passenger').textContent = statusText[status] || 'В пути';
                 }
 
@@ -404,14 +333,10 @@
                 }
             }
 
-
-            // =======================================================
-            // ============= ЛОГИКА ЭКРАНА ВОДИТЕЛЯ ==================
-            // =======================================================
+            // --- DRIVER SCREEN LOGIC ---
             async function setupDriverScreen() {
                 document.getElementById('driver-screen').classList.remove('hidden');
-                document.getElementById('map').classList.add('hidden'); // Карта водителю пока не нужна
-                
+                document.getElementById('map').classList.add('hidden');
                 const statusToggle = document.getElementById('driver-status-toggle');
                 const statusText = document.getElementById('driver-status-text');
 
@@ -428,63 +353,46 @@
                         document.getElementById('no-orders-placeholder').classList.remove('hidden');
                     }
                 });
-                
-                await checkActiveRide(); // Проверяем наличие активного заказа при входе
+                await checkActiveRide();
             }
 
             function subscribeToRides() {
                 renderAvailableRides();
                 if (realtimeChannel) realtimeChannel.unsubscribe();
-                
-                realtimeChannel = supabase.channel('public:rides')
+                realtimeChannel = supabaseClient.channel('public:rides')
                   .on('postgres_changes', { event: '*', schema: 'public', table: 'rides' }, () => {
                     checkActiveRide();
                     renderAvailableRides();
-                  })
-                  .subscribe();
+                  }).subscribe();
             }
 
             async function renderAvailableRides() {
-                const { data: rides, error } = await supabase.from('rides').select('*').eq('ride_status', 'requesting');
-                if (error) return console.error("Ошибка загрузки заказов:", error);
-                
+                const { data: rides, error } = await supabaseClient.from('rides').select('*').eq('ride_status', 'requesting');
+                if (error) return;
                 const ordersList = document.getElementById('orders-list');
                 const placeholder = document.getElementById('no-orders-placeholder');
                 ordersList.innerHTML = '';
+                placeholder.classList.toggle('hidden', rides.length > 0);
 
-                if (rides.length === 0) {
-                    placeholder.classList.remove('hidden');
-                } else {
-                    placeholder.classList.add('hidden');
-                    rides.forEach(ride => {
-                        ordersList.insertAdjacentHTML('beforeend', `
-                            <div class="bg-gray-50 border border-gray-200 p-4 rounded-lg shadow-sm">
-                                <div class="flex justify-between items-center">
-                                    <p class="font-semibold">${ride.pickup_location}</p>
-                                    <div class="text-lg font-bold text-blue-600 pl-4">${ride.fare_amount} ₽</div>
-                                </div>
-                                <p class="text-sm text-gray-500">${ride.destination_location}</p>
-                                <button data-ride-id="${ride.id}" class="accept-ride-btn mt-4 w-full bg-green-500 text-white font-bold py-2 rounded-lg hover:bg-green-600">
-                                    Принять заказ
-                                </button>
+                rides.forEach(ride => {
+                    ordersList.insertAdjacentHTML('beforeend', `
+                        <div class="bg-gray-50 border border-gray-200 p-4 rounded-lg shadow-sm">
+                            <div class="flex justify-between items-center">
+                                <p class="font-semibold">${ride.pickup_location}</p>
+                                <div class="text-lg font-bold text-blue-600 pl-4">${ride.fare_amount} ₽</div>
                             </div>
-                        `);
-                    });
-                }
-                
+                            <p class="text-sm text-gray-500">${ride.destination_location}</p>
+                            <button data-ride-id="${ride.id}" class="accept-ride-btn mt-4 w-full bg-green-500 text-white font-bold py-2 rounded-lg hover:bg-green-600">Принять заказ</button>
+                        </div>`);
+                });
                 document.querySelectorAll('.accept-ride-btn').forEach(b => b.onclick = acceptRide);
             }
             
             async function acceptRide(event) {
                 event.target.disabled = true;
                 event.target.textContent = 'Принимаем...';
-                
-                const { error } = await supabase
-                    .from('rides')
-                    .update({ driver_id: currentUser.id, ride_status: 'accepted' })
-                    .eq('id', event.target.dataset.rideId)
-                    .eq('ride_status', 'requesting');
-
+                const { error } = await supabaseClient.from('rides').update({ driver_id: currentUser.id, ride_status: 'accepted' })
+                    .eq('id', event.target.dataset.rideId).eq('ride_status', 'requesting');
                 if (error) {
                     window.Telegram.WebApp.showAlert('Не удалось принять заказ. Возможно, его уже кто-то взял.');
                     event.target.disabled = false;
@@ -493,54 +401,44 @@
             }
             
             async function checkActiveRide() {
-                const { data: ride } = await supabase.from('rides').select('*').eq('driver_id', currentUser.id).in('ride_status', ['accepted', 'enroute', 'in_progress']).maybeSingle();
+                const { data: ride } = await supabaseClient.from('rides').select('*').eq('driver_id', currentUser.id).in('ride_status', ['accepted', 'enroute', 'in_progress']).maybeSingle();
                 const activeRideContainer = document.getElementById('active-ride-driver');
-                
-                if (ride) {
-                    document.getElementById('available-orders-title').classList.add('hidden');
-                    document.getElementById('orders-list').classList.add('hidden');
-                    activeRideContainer.classList.remove('hidden');
+                const isRideActive = !!ride;
+
+                document.getElementById('available-orders-title').classList.toggle('hidden', isRideActive);
+                document.getElementById('orders-list').classList.toggle('hidden', isRideActive);
+                activeRideContainer.classList.toggle('hidden', !isRideActive);
+
+                if (isRideActive) {
                     document.getElementById('active-ride-from').textContent = ride.pickup_location;
                     document.getElementById('active-ride-to').textContent = ride.destination_location;
                     document.getElementById('active-ride-fare').textContent = ride.fare_amount;
                     renderDriverActionButtons(ride);
-                } else {
-                    document.getElementById('available-orders-title').classList.remove('hidden');
-                    document.getElementById('orders-list').classList.remove('hidden');
-                    activeRideContainer.classList.add('hidden');
                 }
             }
             
             function renderDriverActionButtons(ride) {
                 const container = document.getElementById('driver-action-buttons');
                 container.innerHTML = '';
-                
-                const updateStatus = async (newStatus) => {
-                    await supabase.from('rides').update({ ride_status: newStatus }).eq('id', ride.id);
-                };
-
+                const updateStatus = (newStatus) => supabaseClient.from('rides').update({ ride_status: newStatus }).eq('id', ride.id);
                 const actions = {
                     'accepted': { text: 'Я на месте', action: () => updateStatus('enroute'), class: 'bg-blue-500' },
                     'enroute': { text: 'Начать поездку', action: () => updateStatus('in_progress'), class: 'bg-blue-500' },
                     'in_progress': { text: 'Завершить поездку', action: () => updateStatus('completed'), class: 'bg-green-500' }
                 };
-
                 if (actions[ride.ride_status]) {
-                    const action = actions[ride.ride_status];
-                    container.innerHTML += `<button class="w-full text-white font-bold py-2 rounded-lg ${action.class}">${action.text}</button>`;
-                    container.lastChild.onclick = action.action;
+                    const { text, action, 'class': btnClass } = actions[ride.ride_status];
+                    container.innerHTML = `<button class="w-full text-white font-bold py-2 rounded-lg ${btnClass}">${text}</button>`;
+                    container.firstChild.onclick = action;
                 }
-                
                 container.innerHTML += `<button class="w-full bg-red-500 text-white font-bold py-2 rounded-lg mt-2">Отменить заказ</button>`;
                 container.lastChild.onclick = () => updateStatus('cancelled');
             }
             
-            // --- Утилиты и хелперы ---
+            // --- UTILITIES ---
             function showError(message, hideLoaderIcon = false) {
                 loaderText.innerHTML = `<span class="text-red-600 font-semibold text-center">${message}</span>`;
-                if(hideLoaderIcon) {
-                    document.querySelector('#global-loader .loader').style.display = 'none';
-                }
+                if(hideLoaderIcon) document.querySelector('#global-loader .loader').style.display = 'none';
             }
 
             function setupBottomSheet(sheet, handle) {
@@ -550,7 +448,7 @@
                 });
             }
             
-            // --- Запуск приложения ---
+            // --- START THE APP ---
             main();
         });
     </script>
