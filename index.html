@@ -285,17 +285,20 @@
 
         // --- AUTH & USER LOGIC ---
         async function authenticateUser() {
-            console.log('Authenticating user...');
-            ui.loadingScreen.classList.remove('hidden');
-            
+            console.log('Attempting to authenticate user...');
+            ui.loadingScreen.classList.remove('hidden'); // Show loading screen
+
             try {
-                const telegramUser = tg.initDataUnsafe?.user || { id: 123456789, first_name: "Test", last_name: "User" };
-                const telegramId = telegramUser.id;
+                console.log('Telegram.WebApp.initDataUnsafe:', tg.initDataUnsafe);
+                
+                // Use live user data, with a fallback for local testing ONLY if initData is empty
+                const telegramUser = tg.initDataUnsafe?.user || (Object.keys(tg.initDataUnsafe || {}).length === 0 ? { id: 987654321, first_name: "Test", last_name: "User" } : null);
 
-                if (!telegramId) {
-                    throw new Error("Telegram User ID not found.");
+                if (!telegramUser || !telegramUser.id) {
+                    throw new Error("Не удалось получить данные пользователя Telegram. Попробуйте перезапустить приложение.");
                 }
-
+                
+                const telegramId = telegramUser.id;
                 console.log('Querying profile for telegram_id:', telegramId);
 
                 let { data: user, error: fetchError } = await supabase
@@ -304,31 +307,22 @@
                     .eq('telegram_id', telegramId)
                     .single();
 
-                if (fetchError && fetchError.code === 'PGRST116') { // User not found, so create them
+                if (fetchError && fetchError.code === 'PGRST116') { // User not found, create them
                     console.log('User not found. Creating a new profile automatically.');
-                    
                     const newProfile = {
                         telegram_id: telegramId,
                         full_name: `${telegramUser.first_name || ''} ${telegramUser.last_name || ''}`.trim() || 'Новый пользователь',
                         avatar_url: telegramUser.photo_url || null,
-                        role: 'passenger' // Default role
+                        role: 'passenger'
                     };
-
                     const { data: newUser, error: insertError } = await supabase
                         .from('user_profiles')
                         .insert(newProfile)
                         .select()
                         .single();
-
-                    if (insertError) {
-                        console.error('Auto-registration error:', insertError);
-                        throw new Error(`Не удалось автоматически создать профиль: ${insertError.message}`);
-                    }
-                    
-                    console.log('New user created:', newUser);
+                    if (insertError) throw insertError;
                     user = newUser;
-
-                } else if (fetchError) { // Any other error during fetch
+                } else if (fetchError) {
                     throw fetchError;
                 }
 
@@ -338,9 +332,10 @@
 
             } catch (err) {
                 console.error("Authentication failed:", err);
-                tg.showAlert(`Критическая ошибка: ${err.message}`);
-                // The loading screen will remain, as the app cannot function.
+                tg.showAlert(`Ошибка входа: ${err.message}. Пожалуйста, проверьте интернет-соединение и попробуйте перезапустить приложение.`);
             } finally {
+                // This will ALWAYS run, ensuring the loading screen is hidden.
+                console.log('Authentication flow finished. Hiding loading screen.');
                 ui.loadingScreen.classList.add('hidden');
             }
         }
