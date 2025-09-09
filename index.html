@@ -2,620 +2,601 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
-    <title>Такси Mini App</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Telegram Taxi</title>
     
-    <!-- Подключение стилей и скриптов -->
+    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href='https://api.mapbox.com/mapbox-gl-js/v3.4.0/mapbox-gl.css' rel='stylesheet' />
-    <script src='https://api.mapbox.com/mapbox-gl-js/v3.4.0/mapbox-gl.js'></script>
-    <script src="https://unpkg.com/lucide@latest"></script>
-    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    
+    <!-- Mapbox GL JS -->
+    <script src='https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js'></script>
+    <link href='https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css' rel='stylesheet' />
+    
+    <!-- Supabase JS -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-geocoder/v5.0.0/mapbox-gl-geocoder.min.js"></script>
-    <link rel="stylesheet" href="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-geocoder/v5.0.0/mapbox-gl-geocoder.css" type="text/css">
+    
+    <!-- Telegram Web App SDK -->
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    
+    <!-- Icons -->
+    <script src="https://cdn.jsdelivr.net/npm/lucide-static@latest/dist/lucide.min.js"></script>
 
     <style>
-        body, html { overscroll-behavior: none; overflow: hidden; height: 100%; width: 100%; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }
-        .bottom-sheet { touch-action: none; transition: transform 0.4s cubic-bezier(0.25, 0.8, 0.25, 1); }
-        .loader { border: 4px solid #f3f3f3; border-top: 4px solid #3b82f6; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; }
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        .driver-marker { background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="%233B82F6" stroke="white" stroke-width="2"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg>'); background-size: contain; width: 40px; height: 40px; }
-        .mapboxgl-ctrl-geocoder { width: 100% !important; max-width: none !important; box-shadow: none; }
-        .mapboxgl-ctrl-geocoder--input { height: 48px !important; padding-left: 40px !important; background-color: #f3f4f6; border-radius: 0.5rem; border: transparent; }
-        .mapboxgl-ctrl-geocoder--icon { top: 12px !important; left: 12px !important; }
-        .custom-marker { display: flex; align-items: center; justify-content: center; background-color: #3b82f6; color: white; width: 30px; height: 30px; border-radius: 50%; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.2); font-weight: bold; }
-        .screen { position: absolute; inset: 0; z-index: 30; background-color: #f9fafb; display: flex; flex-direction: column; transform: translateX(100%); transition: transform 0.3s ease-in-out; }
-        .screen.active { transform: translateX(0); }
-        .state-screen { animation: fadeIn 0.3s ease-in-out; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        /* Custom styles for better look and feel */
+        body {
+            overscroll-behavior: none;
+        }
+        .bottom-sheet {
+            transition: transform 0.3s ease-in-out;
+            transform: translateY(100%);
+        }
+        .bottom-sheet.active {
+            transform: translateY(0);
+        }
+        .mapboxgl-ctrl-bottom-left, .mapboxgl-ctrl-bottom-right {
+            display: none; /* Hide default Mapbox controls to avoid clutter */
+        }
     </style>
 </head>
-<body class="bg-gray-100">
+<body class="bg-gray-900 text-white overflow-hidden h-screen">
 
-    <div id="global-loader" class="fixed inset-0 bg-white/80 backdrop-blur-sm flex flex-col justify-center items-center z-50 p-4">
-        <div class="loader"></div>
-        <p id="loader-text" class="mt-4 text-gray-600">Подключаемся...</p>
-    </div>
-
-    <div id="app-container" class="relative h-screen w-screen hidden">
+    <div id="app" class="h-full w-full relative">
+        <!-- Map container -->
         <div id="map" class="absolute inset-0 z-0"></div>
 
-        <!-- Интерфейс Пассажира -->
-        <div id="passenger-ui" class="hidden z-10">
-            <div id="bottom-sheet" class="bottom-sheet absolute bottom-0 left-0 right-0 bg-white rounded-t-2xl shadow-2xl p-4 flex flex-col" style="transform: translateY(100%);">
-                <div id="sheet-handle" class="w-12 h-1.5 bg-gray-300 rounded-full mx-auto mb-4 cursor-grab"></div>
-                <div id="sheet-content" class="overflow-y-auto">
-                    <div id="order-form-state" class="state-screen"><h2 class="text-2xl font-bold text-gray-800 text-center mb-2">Куда поедем?</h2><div id="car-class-selector" class="flex justify-around items-center bg-gray-100 rounded-lg p-1 my-4"></div><div class="space-y-3"><div id="from-geocoder"></div><div id="to-geocoder"></div></div><button id="order-button" class="w-full bg-blue-600 text-white font-bold py-3.5 rounded-lg mt-5 transition-all disabled:bg-gray-400 disabled:shadow-none shadow-lg shadow-blue-500/50">Выберите адрес</button></div>
-                    <div id="searching-state" class="hidden state-screen text-center py-8"><div class="loader mx-auto"></div><h3 class="text-xl font-semibold mt-4">Ищем машину...</h3><p class="text-gray-500">Это может занять до минуты</p><button id="cancel-search-button" class="w-full bg-red-600 text-white font-bold py-3.5 rounded-lg mt-6">Отменить поиск</button></div>
-                    <div id="driver-found-state" class="hidden state-screen"><h2 id="ride-title" class="text-2xl font-bold text-gray-800 text-center mb-4">Водитель найден!</h2><div class="bg-gray-100 p-3 rounded-lg"><div class="flex items-center space-x-4"><img id="driver-avatar" src="https://placehold.co/60x60/E2E8F0/A0AEC0?text=A" class="w-14 h-14 rounded-full"><div><p id="driver-name" class="font-bold text-lg">Водитель</p><p id="driver-car" class="text-gray-600">Машина</p></div><div class="flex-grow text-right"><p id="driver-car-plate" class="font-mono bg-white border border-gray-300 px-2 py-1 rounded">A123BC</p></div></div></div><div class="mt-4 text-center"><p id="ride-status-eta" class="text-2xl font-bold text-blue-600">Водитель едет к вам</p><p id="ride-status-passenger" class="text-gray-500"></p></div></div>
-                </div>
+        <!-- Loading Screen -->
+        <div id="loading-screen" class="absolute inset-0 z-50 flex flex-col items-center justify-center bg-gray-900 bg-opacity-80 backdrop-blur-sm">
+            <svg class="animate-spin h-10 w-10 text-white mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            <p class="text-lg">Загрузка приложения...</p>
+        </div>
+        
+        <!-- Registration Screen -->
+        <div id="registration-screen" class="hidden absolute inset-0 z-40 flex items-end justify-center">
+            <div class="bg-gray-800 w-full rounded-t-2xl p-6 shadow-lg">
+                <h2 class="text-2xl font-bold mb-4">Добро пожаловать!</h2>
+                <p class="text-gray-400 mb-6">Пожалуйста, представьтесь, чтобы начать пользоваться сервисом.</p>
+                <form id="registration-form">
+                    <div class="mb-4">
+                        <label for="full_name" class="block text-sm font-medium text-gray-300 mb-1">Ваше имя</label>
+                        <input type="text" id="full_name" class="w-full bg-gray-700 border border-gray-600 rounded-lg p-3 text-white focus:ring-2 focus:ring-blue-500 focus:outline-none" required placeholder="Иван Иванов">
+                    </div>
+                    <div class="mb-6">
+                        <label for="phone" class="block text-sm font-medium text-gray-300 mb-1">Номер телефона</label>
+                        <input type="tel" id="phone" class="w-full bg-gray-700 border border-gray-600 rounded-lg p-3 text-white focus:ring-2 focus:ring-blue-500 focus:outline-none" required placeholder="+7 (999) 123-45-67">
+                    </div>
+                    <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg transition-colors">
+                        Зарегистрироваться
+                    </button>
+                </form>
             </div>
         </div>
 
-        <!-- Интерфейс Водителя -->
-        <div id="driver-ui" class="hidden z-20 h-full w-full flex flex-col pointer-events-none">
-            <div class="bg-white p-4 flex justify-between items-center border-b pointer-events-auto shadow-sm">
-                <h1 class="text-2xl font-bold">Заказы</h1>
-                <div class="flex items-center space-x-4">
-                    <button id="profile-button"><i data-lucide="user-cog" class="w-6 h-6 text-gray-600"></i></button>
-                    <div class="flex items-center space-x-2">
-                        <span id="driver-status-text" class="text-gray-600 font-medium">Офлайн</span>
-                        <label class="relative inline-flex items-center cursor-pointer"><input type="checkbox" id="driver-status-toggle" class="sr-only peer"><div class="w-11 h-6 bg-gray-200 rounded-full peer peer-checked:after:translate-x-full after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div></label>
+        <!-- Main UI container -->
+        <div id="main-ui" class="absolute inset-0 z-10 pointer-events-none">
+            <!-- Passenger UI -->
+            <div id="passenger-ui" class="hidden h-full w-full">
+                <div id="passenger-controls" class="bottom-sheet absolute bottom-0 left-0 right-0 h-[35%] bg-gray-800 rounded-t-2xl shadow-2xl p-4 flex flex-col pointer-events-auto">
+                    <!-- State: Idle -->
+                    <div id="passenger-idle-state" class="">
+                        <div class="w-10 h-1.5 bg-gray-600 rounded-full mx-auto mb-3"></div>
+                        <h2 class="text-xl font-bold text-center mb-4">Куда поедем?</h2>
+                        <div class="relative mb-3">
+                            <input id="pickup-location" type="text" placeholder="Откуда" class="w-full bg-gray-700 border border-gray-600 rounded-lg p-3 pl-10 text-white focus:outline-none" disabled>
+                            <i data-lucide="circle-dot" class="absolute left-3 top-1/2 -translate-y-1/2 text-blue-400"></i>
+                        </div>
+                        <div class="relative mb-4">
+                             <input id="destination-location" type="text" placeholder="Куда" class="w-full bg-gray-700 border border-gray-600 rounded-lg p-3 pl-10 text-white focus:outline-none">
+                             <i data-lucide="map-pin" class="absolute left-3 top-1/2 -translate-y-1/2 text-red-400"></i>
+                        </div>
+                        <button id="request-ride-btn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg transition-colors">
+                            Заказать такси
+                        </button>
+                    </div>
+
+                    <!-- State: Requesting -->
+                    <div id="passenger-requesting-state" class="hidden text-center">
+                        <div class="w-10 h-1.5 bg-gray-600 rounded-full mx-auto mb-3"></div>
+                        <h2 class="text-xl font-bold mb-4">Ищем водителя...</h2>
+                        <div class="flex justify-center items-center my-4">
+                            <svg class="animate-spin h-12 w-12 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                        </div>
+                        <button id="cancel-ride-btn" class="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-3 rounded-lg transition-colors mt-4">
+                            Отменить заказ
+                        </button>
+                    </div>
+
+                     <!-- State: On Trip -->
+                    <div id="passenger-ontrip-state" class="hidden">
+                         <div class="w-10 h-1.5 bg-gray-600 rounded-full mx-auto mb-3"></div>
+                         <h2 class="text-xl font-bold mb-3 text-center">Ваш водитель в пути</h2>
+                         <div class="bg-gray-700 p-3 rounded-lg flex items-center gap-4">
+                            <img id="driver-avatar" src="https://placehold.co/60x60/1F2937/FFFFFF?text=D" class="w-14 h-14 rounded-full object-cover">
+                            <div>
+                               <p id="driver-name" class="font-bold text-lg">Имя Водителя</p>
+                               <div class="flex items-center gap-2 text-gray-300">
+                                   <i data-lucide="star" class="w-4 h-4 text-yellow-400 fill-current"></i>
+                                   <span id="driver-rating">5.0</span>
+                               </div>
+                            </div>
+                            <div class="ml-auto text-right">
+                                <p id="driver-car" class="font-semibold">Kia Rio</p>
+                                <p id="driver-plate" class="bg-gray-800 px-2 py-1 rounded text-sm font-mono tracking-widest">A123BC777</p>
+                            </div>
+                         </div>
+                         <p class="text-center text-gray-300 mt-4">Примерное время прибытия: <span id="driver-eta" class="font-bold text-white">5 минут</span></p>
+                    </div>
+
+                </div>
+            </div>
+
+            <!-- Driver UI -->
+            <div id="driver-ui" class="hidden h-full w-full">
+                 <div id="driver-controls" class="bottom-sheet absolute bottom-0 left-0 right-0 h-[35%] bg-gray-800 rounded-t-2xl shadow-2xl p-4 flex flex-col justify-between pointer-events-auto">
+                    <!-- State: Offline -->
+                    <div id="driver-offline-state" class="text-center flex flex-col items-center justify-center h-full">
+                         <div class="w-10 h-1.5 bg-gray-600 rounded-full -mt-1 mb-3"></div>
+                         <h2 class="text-xl font-bold mb-4">Вы не на линии</h2>
+                         <p class="text-gray-400 mb-6">Нажмите, чтобы начать принимать заказы.</p>
+                         <button id="go-online-btn" class="w-full max-w-xs bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-4 rounded-lg transition-colors">
+                            Выйти на линию
+                         </button>
+                    </div>
+                    
+                    <!-- State: Online (waiting for orders) -->
+                    <div id="driver-online-state" class="hidden text-center flex flex-col items-center justify-center h-full">
+                         <div class="w-10 h-1.5 bg-gray-600 rounded-full -mt-1 mb-3"></div>
+                         <h2 class="text-xl font-bold mb-4 text-green-400">Вы на линии</h2>
+                         <p class="text-gray-400 mb-6">Ожидание новых заказов...</p>
+                         <button id="go-offline-btn" class="w-full max-w-xs bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-4 rounded-lg transition-colors">
+                            Уйти с линии
+                         </button>
+                    </div>
+
+                    <!-- State: Incoming Request -->
+                    <div id="driver-request-state" class="hidden h-full flex flex-col">
+                        <div class="w-10 h-1.5 bg-gray-600 rounded-full mx-auto mb-2"></div>
+                        <h2 class="text-xl font-bold text-center text-blue-400">Новый заказ!</h2>
+                        <div class="bg-gray-700 p-3 rounded-lg my-2 flex-grow">
+                            <div class="flex justify-between items-center mb-2">
+                                <p class="text-gray-400">Подача</p>
+                                <p id="request-pickup" class="font-semibold text-right">ул. Пушкина, д. 1</p>
+                            </div>
+                             <div class="flex justify-between items-center">
+                                <p class="text-gray-400">Назначение</p>
+                                <p id="request-destination" class="font-semibold text-right">пр. Ленина, д. 20</p>
+                            </div>
+                        </div>
+                        <div class="flex gap-4">
+                            <button id="decline-ride-btn" class="w-full bg-gray-600 hover:bg-gray-700 font-bold py-3 rounded-lg transition-colors">Отклонить</button>
+                            <button id="accept-ride-btn" class="w-full bg-green-600 hover:bg-green-700 font-bold py-3 rounded-lg transition-colors">Принять</button>
+                        </div>
+                    </div>
+
+                    <!-- State: Driver on Trip -->
+                    <div id="driver-ontrip-state" class="hidden h-full flex flex-col">
+                        <div class="w-10 h-1.5 bg-gray-600 rounded-full mx-auto mb-2"></div>
+                        <div id="trip-header" class="text-center">
+                           <h2 class="text-xl font-bold text-blue-400">Направляйтесь к клиенту</h2>
+                           <p id="trip-address" class="text-gray-300">ул. Пушкина, д. 1</p>
+                        </div>
+                        <div class="my-4 flex-grow flex items-center justify-center">
+                            <!-- Could show passenger info here -->
+                            <p class="text-gray-500">Навигация (внешняя)</p>
+                        </div>
+                        <button id="trip-action-btn" class="w-full bg-blue-600 hover:bg-blue-700 font-bold py-3 rounded-lg transition-colors">
+                            Я на месте
+                        </button>
                     </div>
                 </div>
             </div>
-            <div id="active-ride-panel" class="hidden p-4 bg-white border-b pointer-events-auto">
-                <h2 class="text-xl font-bold mb-2">Активный заказ</h2>
-                <div class="space-y-2 text-sm"><p><strong><i data-lucide="arrow-up-circle" class="inline w-4 h-4 mr-1"></i>Откуда:</strong> <span id="active-ride-from"></span></p><p><strong><i data-lucide="arrow-down-circle" class="inline w-4 h-4 mr-1"></i>Куда:</strong> <span id="active-ride-to"></span></p><p><strong><i data-lucide="wallet" class="inline w-4 h-4 mr-1"></i>Стоимость:</strong> <span id="active-ride-fare" class="font-bold"></span> руб.</p></div>
-                <div id="driver-action-buttons" class="mt-4 space-y-2"></div>
-            </div>
-            <div id="orders-panel" class="flex-grow flex flex-col bg-white/90 backdrop-blur-sm pointer-events-auto">
-                <h2 class="text-xl font-bold px-4 pt-4">Доступные заказы</h2>
-                <div id="orders-list-container" class="flex-grow overflow-y-auto p-4">
-                    <div id="orders-list" class="space-y-3"></div>
-                    <div id="orders-list-skeleton" class="hidden space-y-3"><div class="bg-gray-200 p-4 rounded-lg animate-pulse"><div class="h-4 bg-gray-300 rounded w-3/4 mb-2"></div><div class="h-3 bg-gray-300 rounded w-1/2 mb-3"></div><div class="h-3 bg-gray-300 rounded w-1/4"></div><div class="h-10 bg-gray-300 rounded w-full mt-4"></div></div><div class="bg-gray-200 p-4 rounded-lg animate-pulse"><div class="h-4 bg-gray-300 rounded w-3/4 mb-2"></div><div class="h-3 bg-gray-300 rounded w-1/2 mb-3"></div><div class="h-3 bg-gray-300 rounded w-1/4"></div><div class="h-10 bg-gray-300 rounded w-full mt-4"></div></div></div>
-                    <div id="no-orders-placeholder" class="text-center py-10 text-gray-500"><i data-lucide="inbox" class="w-12 h-12 mx-auto"></i><p class="mt-2">Нет доступных заказов</p></div>
-                </div>
-            </div>
         </div>
+    </div>
+
+    <script type="module">
+        // --- CONFIGURATION ---
+        const SUPABASE_URL = 'https://skoobtvzeojdmvjsexdm.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNrb29idHZ6ZW9qZG12anNleGRtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTcyMTI5MjksImV4cCI6MjA3Mjc4ODkyOX0.3rtdGA9o07WUV8pKZctK4pA6VJyaUjn5MeZR-bigzP8';
+        const MAPBOX_TOKEN = 'pk.eyJ1IjoieXVuZ3JlemFjIiwiYSI6ImNtOW10ZzJ6bDBjNHUyanI3ejc5eXo1d2MifQ._tryk9cXjfReUGLGnNkm6Q';
+
+        // --- GLOBAL STATE ---
+        let map;
+        let supabase;
+        let tg;
+        let currentUser = null;
+        let currentRide = null;
+        let userMarker;
+        let rideSubscription = null;
+        let rideRequestSubscription = null;
         
-        <!-- Экран Профиля Водителя -->
-        <div id="driver-profile-screen" class="screen">
-            <div class="bg-white p-4 flex items-center border-b"><button id="back-to-orders-button"><i data-lucide="arrow-left" class="w-6 h-6"></i></button><h1 class="text-2xl font-bold text-center flex-grow mr-6">Мой автомобиль</h1></div>
-            <div class="flex-grow overflow-y-auto p-4 space-y-4">
-                <div><label class="font-medium text-gray-700">Марка</label><input id="car-brand" type="text" placeholder="Например, Lada" class="w-full mt-1 p-3 bg-gray-100 rounded-lg border focus:outline-none focus:ring-2 focus:ring-blue-500"></div>
-                <div><label class="font-medium text-gray-700">Модель</label><input id="car-model" type="text" placeholder="Например, Vesta" class="w-full mt-1 p-3 bg-gray-100 rounded-lg border focus:outline-none focus:ring-2 focus:ring-blue-500"></div>
-                <div><label class="font-medium text-gray-700">Год выпуска</label><input id="car-year" type="number" placeholder="2023" class="w-full mt-1 p-3 bg-gray-100 rounded-lg border focus:outline-none focus:ring-2 focus:ring-blue-500"></div>
-                <div><label class="font-medium text-gray-700">Цвет</label><input id="car-color" type="text" placeholder="Белый" class="w-full mt-1 p-3 bg-gray-100 rounded-lg border focus:outline-none focus:ring-2 focus:ring-blue-500"></div>
-                <div><label class="font-medium text-gray-700">Гос. номер</label><input id="car-plate" type="text" placeholder="А123БВ 777" class="w-full mt-1 p-3 bg-gray-100 rounded-lg border focus:outline-none focus:ring-2 focus:ring-blue-500"></div>
-                <div><label class="font-medium text-gray-700">Класс</label><select id="car-class" class="w-full mt-1 p-3 bg-gray-100 rounded-lg border focus:outline-none focus:ring-2 focus:ring-blue-500"><option value="economy">Эконом</option><option value="comfort">Комфорт</option><option value="business">Бизнес</option></select></div>
-            </div>
-            <div class="p-4 border-t bg-white"><button id="save-vehicle-button" class="w-full bg-blue-600 text-white font-bold py-3 rounded-lg active:bg-blue-700">Сохранить</button></div>
-        </div>
-    </div>
-    
-    <div id="toast-notification" class="fixed top-5 right-5 bg-gray-800 text-white py-2 px-4 rounded-lg shadow-lg opacity-0 translate-y-[-20px] transition-all duration-300 z-[100]">
-      <p id="toast-message"></p>
-    </div>
+        // --- UI ELEMENTS ---
+        const ui = {
+            loadingScreen: document.getElementById('loading-screen'),
+            registrationScreen: document.getElementById('registration-screen'),
+            registrationForm: document.getElementById('registration-form'),
+            passengerUI: document.getElementById('passenger-ui'),
+            passengerControls: document.getElementById('passenger-controls'),
+            passengerIdle: document.getElementById('passenger-idle-state'),
+            passengerRequesting: document.getElementById('passenger-requesting-state'),
+            passengerOnTrip: document.getElementById('passenger-ontrip-state'),
+            driverUI: document.getElementById('driver-ui'),
+            driverControls: document.getElementById('driver-controls'),
+            driverOffline: document.getElementById('driver-offline-state'),
+            driverOnline: document.getElementById('driver-online-state'),
+            driverRequest: document.getElementById('driver-request-state'),
+            driverOnTrip: document.getElementById('driver-ontrip-state'),
+            pickupLocationInput: document.getElementById('pickup-location'),
+            requestRideBtn: document.getElementById('request-ride-btn'),
+            cancelRideBtn: document.getElementById('cancel-ride-btn'),
+            goOnlineBtn: document.getElementById('go-online-btn'),
+            goOfflineBtn: document.getElementById('go-offline-btn'),
+            acceptRideBtn: document.getElementById('accept-ride-btn'),
+            declineRideBtn: document.getElementById('decline-ride-btn'),
+            tripActionBtn: document.getElementById('trip-action-btn'),
+        };
 
-<script>
-document.addEventListener('DOMContentLoaded', () => {
-    // --- Константы и конфигурация ---
-    const SUPABASE_URL = 'https://skoobtvzeojdmvjsexdm.supabase.co';
-    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNrb29idHZ6ZW9qZG12anNleGRtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTcyMTI5MjksImV4cCI6MjA3Mjc4ODkyOX0.3rtdGA9o07WUV8pKZctK4pA6VJyaUjn5MeZR-bigzP8';
-    const MAPBOX_TOKEN = 'pk.eyJ1IjoieXVuZ3JlemFjIiwiYSI6ImNtOW10ZzJ6bDBjNHUyanI3ejc5eXo1d2MifQ._tryk9cXjfReUGLGnNkm6Q';
-    const FARE_CONFIG = {
-        economy: { base: 130, perKm: 20, perMin: 8, name: 'Эконом' },
-        comfort: { base: 180, perKm: 28, perMin: 12, name: 'Комфорт' },
-        business: { base: 250, perKm: 40, perMin: 20, name: 'Бизнес' },
-    };
+        // --- INITIALIZATION ---
+        document.addEventListener('DOMContentLoaded', main);
 
-    // --- Глобальное состояние ---
-    let supabaseClient, tg, map, currentUser;
-    let fromCoords, toCoords, fromAddress, toAddress;
-    let fromMarker, toMarker, driverMarker;
-    let rideUpdateChannel, locationChannel, driverLocationWatcherId;
-    let currentRideId = null, driverCurrentLocation = null, driverHasVehicle = false;
-    let selectedCarClass = 'economy';
-    let toastTimeout;
-    let currentSheetState = 'default';
-
-    // --- Основная функция инициализации ---
-    async function main() {
-        try {
-            tg = window.Telegram?.WebApp;
-            if (!tg || !tg.initData) return showError("Пожалуйста, запустите приложение внутри Telegram.", true);
-            tg.ready(); tg.expand();
-
-            supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-            mapboxgl.accessToken = MAPBOX_TOKEN;
-            
-            showLoader("Авторизация...");
-            const tgUser = tg.initDataUnsafe.user;
-            if (!tgUser) return showError("Не удалось получить данные пользователя Telegram.", true);
-            currentUser = await getOrCreateUser(tgUser);
-            if (!currentUser) return;
-
-            showLoader("Загрузка карты...");
-            const userLocation = await getCurrentLocation();
-            initializeMap(userLocation);
-
-            if (currentUser.role === 'driver') await setupDriverScreen();
-            else await setupPassengerScreen();
-
-            hideLoader();
+        async function main() {
             lucide.createIcons();
-        } catch (error) {
-            console.error("Критическая ошибка при инициализации:", error);
-            showError(`Критическая ошибка: ${error.message}`, true);
-        }
-    }
+            tg = window.Telegram.WebApp;
+            tg.expand();
+            tg.ready();
 
-    // --- Пользователь и Авторизация ---
-    async function getOrCreateUser(tgUser) {
-        try {
-            let { data, error } = await supabaseClient.from('user_profiles').select('*').eq('telegram_id', tgUser.id).single();
-            if (error && error.code !== 'PGRST116') throw error;
-            if (data) return data;
-            const fullName = `${tgUser.first_name || ''} ${tgUser.last_name || ''}`.trim();
-            const { data: newUser, error: insertError } = await supabaseClient.from('user_profiles').insert({ 
-                id: crypto.randomUUID(), telegram_id: tgUser.id, 
-                full_name: fullName || tgUser.username || `User ${tgUser.id}`, role: 'passenger' 
-            }).select().single();
-            if (insertError) throw insertError;
-            return newUser;
-        } catch (error) {
-            showError(`Ошибка авторизации: ${error.message}`);
-            return null;
-        }
-    }
-
-    // --- Карта и Геолокация ---
-    function initializeMap(center) {
-        map = new mapboxgl.Map({ container: 'map', style: 'mapbox://styles/mapbox/streets-v12', center, zoom: 14 });
-        map.addControl(new mapboxgl.NavigationControl(), 'top-right');
-        map.addControl(new mapboxgl.GeolocateControl({ trackUserLocation: true }), 'top-right');
-    }
-
-    function getCurrentLocation() {
-        return new Promise(resolve => {
-            const fallback = () => resolve([46.3075, 56.3294]); // Координаты Козьмодемьянска
-            navigator.geolocation.getCurrentPosition(
-                pos => resolve([pos.coords.longitude, pos.coords.latitude]), 
-                () => fallback(), 
-                { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
-            );
-        });
-    }
-
-    // --- Интерфейс и логика Пассажира ---
-    async function setupPassengerScreen() {
-        document.getElementById('passenger-ui').classList.remove('hidden');
-        setupCarClassSelector();
-        setupBottomSheet();
-        
-        const geocoderOptions = (placeholder) => ({ accessToken: MAPBOX_TOKEN, mapboxgl, marker: false, placeholder, countries: 'RU', bbox: [46.2, 56.25, 46.4, 56.4] });
-        const fromGeocoder = new MapboxGeocoder(geocoderOptions('Откуда'));
-        document.getElementById('from-geocoder').appendChild(fromGeocoder.onAdd(map));
-        const toGeocoder = new MapboxGeocoder(geocoderOptions('Куда'));
-        document.getElementById('to-geocoder').appendChild(toGeocoder.onAdd(map));
-        
-        fromCoords = map.getCenter().toArray();
-        fromAddress = await geocodeReverse(fromCoords);
-        fromGeocoder.setInput(formatAddress(fromAddress) || '');
-        updateMapMarkers();
-
-        const onResult = (setter, geocoder, isFrom) => (e) => {
-            const coords = e.result.geometry.coordinates;
-            const address = e.result.place_name;
-            setter(coords, address);
-            geocoder.setInput(formatAddress(address));
-            updateMapMarkers();
-            calculateAndDisplayFare();
-        };
-        fromGeocoder.on('result', onResult((c, a) => { fromCoords = c; fromAddress = a; }, fromGeocoder, true));
-        toGeocoder.on('result', onResult((c, a) => { toCoords = c; toAddress = a; }, toGeocoder, false));
-        
-        document.getElementById('order-button').onclick = createRide;
-        document.getElementById('cancel-search-button').onclick = cancelRide;
-    }
-
-    function setupCarClassSelector() {
-        const container = document.getElementById('car-class-selector');
-        container.innerHTML = '';
-        Object.keys(FARE_CONFIG).forEach(key => {
-            const config = FARE_CONFIG[key];
-            const button = document.createElement('button');
-            button.dataset.class = key;
-            button.className = 'w-full text-center py-2 px-3 rounded-md font-semibold transition-all text-gray-600';
-            button.innerHTML = `<span class="block">${config.name}</span><span class="block text-xs font-normal">~${config.base} ₽</span>`;
-            if (key === selectedCarClass) button.classList.add('bg-white', 'text-blue-600', 'shadow-sm');
-            button.onclick = () => { selectedCarClass = key; setupCarClassSelector(); calculateAndDisplayFare(); };
-            container.appendChild(button);
-        });
-    }
-
-    function setSheetState(state, animated = true) {
-        const sheet = document.getElementById('bottom-sheet');
-        if (!sheet) return;
-
-        currentSheetState = state;
-        let targetTransform = '';
-
-        if (state === 'expanded') {
-            targetTransform = 'translateY(15vh)';
-        } else { // 'default' state
-            const visibleContent = sheet.querySelector('.state-screen:not(.hidden)');
-            if (visibleContent) {
-                const contentHeight = visibleContent.offsetHeight + 120;
-                targetTransform = `translateY(calc(100% - ${contentHeight}px))`;
-            }
-        }
-        
-        if (targetTransform) {
-            sheet.style.transition = animated ? 'transform 0.4s cubic-bezier(0.25, 0.8, 0.25, 1)' : 'none';
-            sheet.style.transform = targetTransform;
-        }
-    }
-
-    function setupBottomSheet() {
-        const content = document.getElementById('sheet-content');
-
-        setTimeout(() => setSheetState('default', true), 100);
-
-        const collapse = () => {
-            if (document.activeElement?.classList.contains('mapboxgl-ctrl-geocoder--input')) return;
-            setSheetState('default');
-        };
-
-        content.addEventListener('focusin', (e) => {
-            if (e.target.classList.contains('mapboxgl-ctrl-geocoder--input')) {
-                setSheetState('expanded');
-            }
-        });
-        
-        content.addEventListener('focusout', () => setTimeout(collapse, 250));
-    }
-    
-    // --- Интерфейс и логика Водителя ---
-    async function setupDriverScreen() {
-        document.getElementById('driver-ui').classList.remove('hidden');
-        await checkDriverVehicle();
-
-        document.getElementById('profile-button').onclick = showProfileScreen;
-        document.getElementById('back-to-orders-button').onclick = () => document.getElementById('driver-profile-screen').classList.remove('active');
-        document.getElementById('save-vehicle-button').onclick = saveVehicleData;
-        
-        document.getElementById('driver-status-toggle').addEventListener('change', handleDriverStatusChange);
-        await checkActiveRide();
-    }
-    
-    async function handleDriverStatusChange(e) {
-        const isOnline = e.target.checked;
-        if (isOnline && !driverHasVehicle) {
-            showToast("Сначала добавьте автомобиль в профиле");
-            e.target.checked = false;
-            return;
+            supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+            
+            initializeMap();
+            await authenticateUser();
         }
 
-        document.getElementById('driver-status-text').textContent = isOnline ? 'На линии' : 'Офлайн';
-        document.getElementById('driver-status-text').classList.toggle('text-green-600', isOnline);
+        function initializeMap() {
+            mapboxgl.accessToken = MAPBOX_TOKEN;
+            map = new mapboxgl.Map({
+                container: 'map',
+                style: 'mapbox://styles/mapbox/dark-v11',
+                center: [37.6173, 55.7558], // Default to Moscow
+                zoom: 12
+            });
 
-        if (isOnline) {
-            showLoader('Выход на линию...');
-            driverCurrentLocation = await getCurrentLocation();
-            hideLoader();
-            subscribeToNewRides();
-            startSendingLocation();
-        } else {
-            rideUpdateChannel?.unsubscribe();
-            stopSendingLocation();
-            document.getElementById('orders-list').innerHTML = '';
-            document.getElementById('no-orders-placeholder').classList.remove('hidden');
-        }
-    }
+            map.addControl(new mapboxgl.NavigationControl({ showCompass: false }), 'top-right');
 
-    async function checkDriverVehicle() {
-        const { data } = await supabaseClient.from('vehicles').select('id').eq('driver_id', currentUser.id).single();
-        driverHasVehicle = !!data;
-        const placeholder = document.getElementById('no-orders-placeholder');
-        if (!driverHasVehicle) {
-            placeholder.innerHTML = `<i data-lucide="car-front" class="w-12 h-12 mx-auto"></i><p class="mt-2">Добавьте автомобиль в профиле, чтобы начать работу.</p>`;
-        } else {
-             placeholder.innerHTML = `<i data-lucide="inbox" class="w-12 h-12 mx-auto"></i><p class="mt-2">Нет доступных заказов</p>`;
-        }
-        lucide.createIcons();
-    }
+            navigator.geolocation.getCurrentPosition(pos => {
+                const { latitude, longitude } = pos.coords;
+                map.flyTo({ center: [longitude, latitude], zoom: 15 });
+                ui.pickupLocationInput.value = "Ваше текущее местоположение";
 
-    async function showProfileScreen() {
-        document.getElementById('driver-profile-screen').classList.add('active');
-        const { data } = await supabaseClient.from('vehicles').select('*').eq('driver_id', currentUser.id).single();
-        if (data) {
-            ['brand', 'model', 'year', 'color', 'plate', 'class'].forEach(key => {
-                const el = document.getElementById(`car-${key}`);
-                if (el) el.value = data[key === 'plate' ? 'plate_number' : key] || '';
+                if (userMarker) userMarker.remove();
+                userMarker = new mapboxgl.Marker({ color: '#3B82F6' })
+                    .setLngLat([longitude, latitude])
+                    .addTo(map);
+
+            }, (err) => {
+                console.warn(`ERROR(${err.code}): ${err.message}`);
+                // Handle error - maybe show a message to the user
+            }, {
+                enableHighAccuracy: true,
+                timeout: 5000,
+                maximumAge: 0
             });
         }
-    }
-    
-    async function saveVehicleData() {
-        const button = document.getElementById('save-vehicle-button');
-        button.disabled = true; button.textContent = "Сохранение...";
-        const vehicleData = {
-            driver_id: currentUser.id, brand: document.getElementById('car-brand').value,
-            model: document.getElementById('car-model').value, year: document.getElementById('car-year').value,
-            color: document.getElementById('car-color').value, plate_number: document.getElementById('car-plate').value,
-            class: document.getElementById('car-class').value,
-        };
-        if (!vehicleData.brand || !vehicleData.model || !vehicleData.plate_number) {
-            showToast("Заполните Марку, Модель и Гос. номер.");
-            button.disabled = false; button.textContent = "Сохранить"; return;
-        }
-        const { error } = await supabaseClient.from('vehicles').upsert(vehicleData, { onConflict: 'driver_id' });
-        if (error) showToast(`Ошибка: ${error.message}`);
-        else {
-            showToast("Данные об автомобиле сохранены.");
-            await checkDriverVehicle();
-            document.getElementById('driver-profile-screen').classList.remove('active');
-        }
-        button.disabled = false; button.textContent = "Сохранить";
-    }
 
-    // --- Логика Поездок ---
-    async function calculateAndDisplayFare() {
-        const button = document.getElementById('order-button');
-        if (!fromCoords || !toCoords) { button.disabled = true; button.textContent = 'Выберите адрес'; return; }
-        button.disabled = true; button.textContent = 'Расчет...';
-        const data = await getDirections(fromCoords, toCoords);
-        if (!data?.routes?.length) { button.textContent = 'Маршрут не найден'; return; }
-        const route = data.routes[0];
-        const fareConfig = FARE_CONFIG[selectedCarClass];
-        const fare = fareConfig.base + ((route.distance / 1000) * fareConfig.perKm) + ((route.duration / 60) * fareConfig.perMin);
-        const roundedFare = Math.ceil(fare / 10) * 10;
-        button.textContent = `Заказать за ~${roundedFare} ₽`;
-        button.dataset.fare = roundedFare;
-        button.disabled = false;
-    }
+        // --- AUTH & USER LOGIC ---
+        async function authenticateUser() {
+            showScreen('loading');
+            try {
+                // For testing in browser, use a mock user
+                const telegramUser = tg.initDataUnsafe?.user || { id: 123456789, first_name: "Test", last_name: "User" };
 
-    async function createRide() {
-        switchPassengerState('searching-state');
-        try {
-            const { data: ride, error } = await supabaseClient.from('rides').insert({ 
-                passenger_id: currentUser.id, pickup_location: formatAddress(fromAddress), destination_location: formatAddress(toAddress), 
-                pickup_latitude: fromCoords[1], pickup_longitude: fromCoords[0], 
-                destination_latitude: toCoords[1], destination_longitude: toCoords[0], 
-                fare_amount: document.getElementById('order-button').dataset.fare, class: selectedCarClass,
-            }).select().single();
-            if (error) throw error;
-            currentRideId = ride.id;
-            subscribeToRideUpdates(ride.id);
-        } catch (error) {
-            switchPassengerState('order-form-state');
-            showToast(`Не удалось создать заказ: ${error.message}`);
-        }
-    }
-
-    async function cancelRide() {
-        if (!currentRideId) return;
-        await supabaseClient.from('rides').update({ ride_status: 'cancelled' }).eq('id', currentRideId);
-        cleanupAfterRide();
-        switchPassengerState('order-form-state');
-    }
-    
-    function subscribeToRideUpdates(rideId) {
-        rideUpdateChannel?.unsubscribe();
-        rideUpdateChannel = supabaseClient.channel(`ride-${rideId}`)
-            .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'rides', filter: `id=eq.${rideId}` }, p => updatePassengerRideStatus(p.new))
-            .subscribe();
-    }
-    
-    function subscribeToNewRides() {
-        renderAvailableRides();
-        rideUpdateChannel?.unsubscribe();
-        rideUpdateChannel = supabaseClient.channel('public:rides')
-          .on('postgres_changes', { event: '*', schema: 'public', table: 'rides' }, () => { renderAvailableRides(); checkActiveRide(); })
-          .subscribe();
-    }
-
-    async function renderAvailableRides() {
-        const list = document.getElementById('orders-list');
-        const skeleton = document.getElementById('orders-list-skeleton');
-        const placeholder = document.getElementById('no-orders-placeholder');
-        
-        list.innerHTML = '';
-        placeholder.classList.add('hidden');
-        if(driverHasVehicle) skeleton.classList.remove('hidden');
-
-        const { data: vehicle } = await supabaseClient.from('vehicles').select('class').eq('driver_id', currentUser.id).single();
-        if (!vehicle) { skeleton.classList.add('hidden'); return; }
-
-        const { data: rides, error } = await supabaseClient.from('rides').select('*').eq('ride_status', 'requesting').eq('class', vehicle.class);
-        skeleton.classList.add('hidden');
-        if (error || rides.length === 0) { placeholder.classList.remove('hidden'); return; }
-        
-        for (const ride of rides) {
-            const directions = await getDirections(driverCurrentLocation, [ride.pickup_longitude, ride.pickup_latitude]);
-            const distance = directions?.routes?.[0] ? `~${(directions.routes[0].distance / 1000).toFixed(1)} км до клиента` : '';
-            list.insertAdjacentHTML('beforeend', `<div class="bg-white border p-4 rounded-lg shadow-sm"><div class="flex justify-between items-start"><div class="pr-2"><p class="font-semibold">${ride.pickup_location}</p><p class="text-sm text-gray-500">${ride.destination_location}</p><p class="text-sm font-semibold text-blue-600 mt-1">${distance}</p></div><div class="text-lg font-bold text-blue-600 pl-2 whitespace-nowrap">${ride.fare_amount} ₽</div></div><button data-ride-id="${ride.id}" class="accept-ride-btn mt-3 w-full bg-green-500 text-white font-bold py-2 rounded-lg">Принять</button></div>`);
-        }
-        document.querySelectorAll('.accept-ride-btn').forEach(b => b.onclick = acceptRide);
-    }
-    
-    async function acceptRide(event) {
-        const btn = event.target;
-        btn.disabled = true; btn.textContent = 'Принимаю...';
-        const { error } = await supabaseClient.from('rides').update({ driver_id: currentUser.id, ride_status: 'accepted' }).eq('id', btn.dataset.rideId).eq('ride_status', 'requesting');
-        if (error) { showToast('Заказ уже недоступен.'); btn.disabled = false; btn.textContent = 'Принять'; }
-    }
-    
-    async function checkActiveRide() {
-        const { data: ride } = await supabaseClient.from('rides').select('*').eq('driver_id', currentUser.id).in('ride_status', ['accepted', 'enroute', 'in_progress']).maybeSingle();
-        document.getElementById('orders-panel').classList.toggle('hidden', !!ride);
-        document.getElementById('active-ride-panel').classList.toggle('hidden', !ride);
-
-        if (ride) {
-            document.getElementById('active-ride-from').textContent = ride.pickup_location;
-            document.getElementById('active-ride-to').textContent = ride.destination_location;
-            document.getElementById('active-ride-fare').textContent = ride.fare_amount;
-            renderDriverActionButtons(ride);
-            const destination = (ride.ride_status === 'in_progress') ? [ride.destination_longitude, ride.destination_latitude] : [ride.pickup_longitude, ride.pickup_latitude];
-            if(driverCurrentLocation) drawTripRoute(driverCurrentLocation, destination, 'driver-route');
-        }
-    }
-    
-    function renderDriverActionButtons(ride) {
-        const container = document.getElementById('driver-action-buttons');
-        const updateStatus = (s) => supabaseClient.from('rides').update({ ride_status: s }).eq('id', ride.id).then(() => { if (['completed', 'cancelled'].includes(s)) checkActiveRide(); });
-        const actions = { 
-            accepted: { text: 'Я на месте', action: () => updateStatus('enroute'), class: 'bg-blue-500' }, 
-            enroute: { text: 'Начать поездку', action: () => updateStatus('in_progress'), class: 'bg-blue-500' }, 
-            in_progress: { text: 'Завершить', action: () => updateStatus('completed'), class: 'bg-green-500' } 
-        };
-        container.innerHTML = (actions[ride.ride_status] ? `<button id="main-action-btn" class="w-full text-white font-bold py-2 rounded-lg ${actions[ride.ride_status].class}">${actions[ride.ride_status].text}</button>` : '') + `<button id="cancel-action-btn" class="w-full bg-red-500 text-white font-bold py-2 rounded-lg mt-2">Отменить</button>`;
-        if(actions[ride.ride_status]) document.getElementById('main-action-btn').onclick = actions[ride.ride_status].action;
-        document.getElementById('cancel-action-btn').onclick = () => updateStatus('cancelled');
-    }
-
-    async function updatePassengerRideStatus(ride) {
-        const statusMap = { 
-            accepted: 'Водитель принял заказ', 
-            enroute: 'Водитель ожидает вас', 
-            in_progress: 'В пути к месту назначения' 
-        };
-        if (statusMap[ride.ride_status]) {
-            switchPassengerState('driver-found-state');
-            document.getElementById('ride-status-passenger').textContent = statusMap[ride.ride_status];
-            const [{ data: driver }, { data: vehicle }] = await Promise.all([
-                supabaseClient.from('user_profiles').select('full_name').eq('id', ride.driver_id).single(),
-                supabaseClient.from('vehicles').select('*').eq('driver_id', ride.driver_id).single()
-            ]);
-            document.getElementById('driver-name').textContent = driver?.full_name || 'Водитель';
-            document.getElementById('driver-car').textContent = vehicle ? `${vehicle.color} ${vehicle.brand} ${vehicle.model}` : 'Машина';
-            document.getElementById('driver-car-plate').textContent = vehicle?.plate_number || '...';
-            listenForDriverLocation(ride.driver_id, [ride.pickup_longitude, ride.pickup_latitude], [ride.destination_longitude, ride.destination_latitude], ride.ride_status);
-        }
-        if (['completed', 'cancelled'].includes(ride.ride_status)) {
-            const completed = ride.ride_status === 'completed';
-            showToast(completed ? 'Поездка завершена!' : 'Заказ отменен');
-            cleanupAfterRide();
-            switchPassengerState('order-form-state');
-        }
-    }
-
-    // --- Геолокация и Карта ---
-    function startSendingLocation() {
-        if (driverLocationWatcherId) return;
-        locationChannel = supabaseClient.channel(`driver-${currentUser.id}`);
-        locationChannel.subscribe();
-        driverLocationWatcherId = navigator.geolocation.watchPosition(
-            pos => {
-                driverCurrentLocation = [pos.coords.longitude, pos.coords.latitude];
-                locationChannel.send({ type: 'broadcast', event: 'location_update', payload: { lon: pos.coords.longitude, lat: pos.coords.latitude } });
-            }, console.error, { enableHighAccuracy: true }
-        );
-    }
-
-    function stopSendingLocation() {
-        if (driverLocationWatcherId) navigator.geolocation.clearWatch(driverLocationWatcherId);
-        locationChannel?.unsubscribe();
-        driverLocationWatcherId = locationChannel = driverCurrentLocation = null;
-    }
-
-    function listenForDriverLocation(driverId, pickup, destination, status) {
-        locationChannel?.unsubscribe();
-        locationChannel = supabaseClient.channel(`driver-${driverId}`)
-            .on('broadcast', { event: 'location_update' }, async ({ payload }) => {
-                const driverCoords = [payload.lon, payload.lat];
-                if (!driverMarker) driverMarker = createMarker('', driverCoords, true).addTo(map);
-                else driverMarker.setLngLat(driverCoords);
-                
-                const target = status === 'in_progress' ? destination : pickup;
-                const directions = await getDirections(driverCoords, target);
-                if (directions?.routes?.length) {
-                    const etaMinutes = Math.round(directions.routes[0].duration / 60);
-                    const etaText = etaMinutes > 0 ? `Примерное время прибытия: ~${etaMinutes} мин` : 'Водитель прибыл';
-                    document.getElementById('ride-status-eta').textContent = etaText;
+                if (!telegramUser) {
+                    throw new Error("Не удалось получить данные пользователя Telegram.");
                 }
-                drawTripRoute(driverCoords, target, 'driver-route');
-            }).subscribe();
-    }
 
-    function updateMapMarkers() {
-        fromMarker?.remove(); toMarker?.remove();
-        if (fromCoords) fromMarker = createMarker('A', fromCoords).addTo(map);
-        if (toCoords) toMarker = createMarker('Б', toCoords).addTo(map);
-        if (fromCoords && toCoords) {
-            const bounds = new mapboxgl.LngLatBounds(fromCoords, toCoords);
-            map.fitBounds(bounds, { padding: 80 });
-            drawTripRoute(fromCoords, toCoords, 'trip-preview');
+                const { data, error } = await supabase
+                    .from('user_profiles')
+                    .select('*')
+                    .eq('telegram_id', telegramUser.id)
+                    .single();
+
+                if (error && error.code === 'PGRST116') { // User not found
+                    showScreen('registration');
+                    ui.registrationForm.querySelector('#full_name').value = `${telegramUser.first_name || ''} ${telegramUser.last_name || ''}`.trim();
+                } else if (data) {
+                    currentUser = data;
+                    console.log('User authenticated:', currentUser);
+                    loadRoleUI(currentUser.role);
+                } else {
+                    throw error || new Error("Произошла неизвестная ошибка аутентификации.");
+                }
+
+            } catch (err) {
+                console.error("Auth Error:", err);
+                tg.showAlert(`Ошибка аутентификации: ${err.message}`);
+            } finally {
+                if (currentUser) {
+                     ui.loadingScreen.classList.add('hidden');
+                }
+            }
         }
-    }
-    
-    async function drawTripRoute(start, end, routeId) {
-        const data = await getDirections(start, end);
-        const route = data?.routes?.[0]?.geometry;
-        if(!route) return;
-        if (map.getSource(routeId)) map.getSource(routeId).setData(route); 
-        else map.addLayer({ id: routeId, type: 'line', source: { type: 'geojson', data: route }, paint: { 'line-color': '#3b82f6', 'line-width': 6, 'line-opacity': 0.8 } });
-    }
-    
-    // --- Вспомогательные функции ---
-    function formatAddress(placeName) {
-        if (!placeName) return '';
-        const partsToRemove = ['Россия', 'Республика Марий Эл', /^\d{6}$/];
-        return placeName.split(', ').filter(part => !partsToRemove.some(r => part.match(r))).join(', ');
-    }
-    
-    async function geocodeReverse(coords) {
-        const r = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${coords[0]},${coords[1]}.json?access_token=${MAPBOX_TOKEN}&language=ru`);
-        const d = await r.json();
-        return d?.features?.[0]?.place_name;
-    }
-    
-    async function getDirections(start, end) {
-        try {
-            const r = await fetch(`https://api.mapbox.com/directions/v5/mapbox/driving/${start.join(',')};${end.join(',')}?geometries=geojson&access_token=${MAPBOX_TOKEN}`);
-            return await r.json();
-        } catch { return null; }
-    }
-    
-    function showLoader(text) { document.getElementById('loader-text').textContent = text; document.getElementById('global-loader').classList.remove('hidden'); }
-    function hideLoader() { document.getElementById('global-loader').classList.add('hidden'); document.getElementById('app-container').classList.remove('hidden'); }
-    function showError(message, isCritical = false) { const loader = document.getElementById('global-loader'); loader.classList.remove('hidden'); loader.innerHTML = `<span class="text-red-600 font-semibold text-center">${message}</span>`; }
-    
-    function switchPassengerState(state) {
-        ['order-form-state', 'searching-state', 'driver-found-state'].forEach(id => {
-            document.getElementById(id).classList.toggle('hidden', id !== state);
+
+        ui.registrationForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const fullName = ui.registrationForm.querySelector('#full_name').value;
+            const phone = ui.registrationForm.querySelector('#phone').value;
+            const telegramUser = tg.initDataUnsafe?.user || { id: 123456789 };
+
+            const { data, error } = await supabase
+                .from('user_profiles')
+                .insert({
+                    id: crypto.randomUUID(), // Assuming `id` is not auto-generated by auth trigger
+                    full_name: fullName,
+                    phone: phone,
+                    telegram_id: telegramUser.id
+                })
+                .select()
+                .single();
+
+            if (error) {
+                console.error('Registration error:', error);
+                tg.showAlert(`Ошибка регистрации: ${error.message}`);
+            } else {
+                currentUser = data;
+                console.log('User registered:', currentUser);
+                await authenticateUser(); // Re-auth to load the correct UI
+            }
         });
 
-        // После переключения контента, обновим высоту шторки
-        setTimeout(() => {
-            // Обновляем только если шторка не была раскрыта вручную
-            if (currentSheetState === 'default') {
-                setSheetState('default');
-            }
-        }, 350); // Задержка соответствует анимации fadeIn
-    }
+        // --- UI & ROLE MANAGEMENT ---
+        function showScreen(screen) {
+            ['loading', 'registration'].forEach(s => {
+                const el = document.getElementById(`${s}-screen`);
+                if (s === screen) el.classList.remove('hidden');
+                else el.classList.add('hidden');
+            });
+        }
+        
+        function setPassengerState(state) {
+            ['idle', 'requesting', 'ontrip'].forEach(s => {
+                const el = document.getElementById(`passenger-${s}-state`);
+                if(s === state) el.classList.remove('hidden');
+                else el.classList.add('hidden');
+            });
+        }
+        
+        function setDriverState(state) {
+            ['offline', 'online', 'request', 'ontrip'].forEach(s => {
+                const el = document.getElementById(`driver-${s}-state`);
+                if(s === state) el.classList.remove('hidden');
+                else el.classList.add('hidden');
+            });
+        }
 
-    function cleanupAfterRide() {
-        rideUpdateChannel?.unsubscribe(); locationChannel?.unsubscribe();
-        driverMarker?.remove(); fromMarker?.remove(); toMarker?.remove();
-        driverMarker = fromMarker = toMarker = currentRideId = null;
-        ['trip-preview', 'driver-route'].forEach(id => { if (map.getLayer(id)) { map.removeLayer(id); map.removeSource(id); }});
-    }
-    function createMarker(text, coords, isDriver = false) { const el = document.createElement('div'); el.className = isDriver ? 'driver-marker' : 'custom-marker'; if (!isDriver) el.textContent = text; return new mapboxgl.Marker(el).setLngLat(coords); }
-    function showToast(message, duration = 3000) {
-      const toast = document.getElementById('toast-notification');
-      document.getElementById('toast-message').textContent = message;
-      clearTimeout(toastTimeout);
-      toast.classList.remove('opacity-0', 'translate-y-[-20px]');
-      toastTimeout = setTimeout(() => toast.classList.add('opacity-0', 'translate-y-[-20px]'), duration);
-    }
-    
-    main();
-});
-</script>
+        function loadRoleUI(role) {
+            if (role === 'passenger') {
+                ui.passengerUI.classList.remove('hidden');
+                ui.driverUI.classList.add('hidden');
+                ui.passengerControls.classList.add('active');
+                setPassengerState('idle');
+                setupPassengerListeners();
+            } else if (role === 'driver') {
+                ui.driverUI.classList.remove('hidden');
+                ui.passengerUI.classList.add('hidden');
+                ui.driverControls.classList.add('active');
+                setDriverState('offline');
+                setupDriverListeners();
+            }
+        }
+
+        // --- PASSENGER LOGIC ---
+        function setupPassengerListeners() {
+            ui.requestRideBtn.onclick = requestRide;
+            ui.cancelRideBtn.onclick = cancelRide;
+        }
+        
+        async function requestRide() {
+            const destination = document.getElementById('destination-location').value;
+            if (!destination) {
+                tg.showAlert('Пожалуйста, укажите пункт назначения.');
+                return;
+            }
+            
+            setPassengerState('requesting');
+            const userCoords = userMarker.getLngLat();
+
+            const { data, error } = await supabase
+                .from('rides')
+                .insert({
+                    passenger_id: currentUser.id,
+                    pickup_location: 'Текущее местоположение',
+                    pickup_latitude: userCoords.lat,
+                    pickup_longitude: userCoords.lng,
+                    destination_location: destination,
+                    // destination coordinates would be resolved by a geocoder in a real app
+                })
+                .select()
+                .single();
+                
+            if (error) {
+                console.error("Ride request error:", error);
+                tg.showAlert("Не удалось создать заказ.");
+                setPassengerState('idle');
+            } else {
+                currentRide = data;
+                listenToRideUpdates(currentRide.id);
+            }
+        }
+
+        async function cancelRide() {
+            if (!currentRide) return;
+            
+            const { error } = await supabase
+                .from('rides')
+                .update({ ride_status: 'cancelled', cancelled_at: new Date().toISOString() })
+                .eq('id', currentRide.id);
+
+            if (error) {
+                 tg.showAlert("Не удалось отменить заказ.");
+            } else {
+                 if (rideSubscription) rideSubscription.unsubscribe();
+                 currentRide = null;
+                 setPassengerState('idle');
+                 tg.HapticFeedback.notificationOccurred('warning');
+            }
+        }
+        
+        function listenToRideUpdates(rideId) {
+            if (rideSubscription) rideSubscription.unsubscribe();
+
+            rideSubscription = supabase
+                .channel(`public:rides:id=eq.${rideId}`)
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'rides', filter: `id=eq.${rideId}` }, async (payload) => {
+                    console.log('Ride update received:', payload);
+                    currentRide = payload.new;
+                    
+                    if (currentRide.ride_status === 'accepted') {
+                        setPassengerState('ontrip');
+                        tg.HapticFeedback.notificationOccurred('success');
+                        
+                        // Fetch driver info
+                        const {data: driverData} = await supabase
+                            .from('user_profiles')
+                            .select('full_name, avatar_url, rating')
+                            .eq('id', currentRide.driver_id)
+                            .single();
+                        
+                        const {data: vehicleData} = await supabase
+                            .from('vehicles')
+                            .select('brand, model, plate_number')
+                            .eq('driver_id', currentRide.driver_id)
+                            .single();
+                        
+                        if(driverData) {
+                            document.getElementById('driver-name').innerText = driverData.full_name;
+                            document.getElementById('driver-rating').innerText = driverData.rating.toFixed(1);
+                            if(driverData.avatar_url) document.getElementById('driver-avatar').src = driverData.avatar_url;
+                        }
+                        if(vehicleData){
+                            document.getElementById('driver-car').innerText = `${vehicleData.brand} ${vehicleData.model}`;
+                            document.getElementById('driver-plate').innerText = vehicleData.plate_number;
+                        }
+                    } else if (currentRide.ride_status === 'completed' || currentRide.ride_status === 'cancelled') {
+                        if (rideSubscription) rideSubscription.unsubscribe();
+                        setPassengerState('idle');
+                        // Here you would show a rating screen
+                    }
+                })
+                .subscribe();
+        }
+
+        // --- DRIVER LOGIC ---
+        function setupDriverListeners() {
+            ui.goOnlineBtn.onclick = () => toggleDriverStatus(true);
+            ui.goOfflineBtn.onclick = () => toggleDriverStatus(false);
+            ui.acceptRideBtn.onclick = acceptRide;
+            ui.declineRideBtn.onclick = declineRide;
+            ui.tripActionBtn.onclick = handleTripAction;
+        }
+
+        function toggleDriverStatus(isOnline) {
+            if (isOnline) {
+                setDriverState('online');
+                listenForRideRequests();
+                tg.HapticFeedback.impactOccurred('light');
+            } else {
+                setDriverState('offline');
+                if (rideRequestSubscription) rideRequestSubscription.unsubscribe();
+                tg.HapticFeedback.impactOccurred('light');
+            }
+        }
+        
+        function listenForRideRequests() {
+            if (rideRequestSubscription) rideRequestSubscription.unsubscribe();
+
+            rideRequestSubscription = supabase
+                .channel('public:rides')
+                .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'rides', filter: 'ride_status=eq.requesting' }, (payload) => {
+                    console.log('New ride request:', payload.new);
+                    currentRide = payload.new;
+                    document.getElementById('request-pickup').innerText = currentRide.pickup_location;
+                    document.getElementById('request-destination').innerText = currentRide.destination_location;
+                    setDriverState('request');
+                    tg.HapticFeedback.notificationOccurred('success');
+                })
+                .subscribe();
+        }
+        
+        async function acceptRide() {
+            if (!currentRide) return;
+
+            const { error } = await supabase
+                .from('rides')
+                .update({
+                    driver_id: currentUser.id,
+                    ride_status: 'accepted',
+                    accepted_at: new Date().toISOString()
+                })
+                .eq('id', currentRide.id);
+
+            if (error) {
+                tg.showAlert("Не удалось принять заказ.");
+            } else {
+                if (rideRequestSubscription) rideRequestSubscription.unsubscribe(); // Stop listening for other requests
+                document.getElementById('trip-address').innerText = currentRide.pickup_location;
+                setDriverState('ontrip');
+            }
+        }
+        
+        function declineRide() {
+            currentRide = null;
+            setDriverState('online'); // Go back to waiting for orders
+        }
+
+        async function handleTripAction() {
+            // This function would handle "I'm here", "Start trip", "End trip" logic
+            const button = ui.tripActionBtn;
+            let newStatus;
+            let newHeaderText;
+            let newButtonText;
+            
+            switch(currentRide.ride_status) {
+                case 'accepted':
+                    newStatus = 'started';
+                    newHeaderText = `Везем клиента в ${currentRide.destination_location}`;
+                    newButtonText = "Завершить поездку";
+                    break;
+                case 'started':
+                    newStatus = 'completed';
+                    break;
+            }
+
+            if(newStatus === 'completed') {
+                await supabase.from('rides').update({ 
+                    ride_status: 'completed', 
+                    completed_at: new Date().toISOString()
+                }).eq('id', currentRide.id);
+                currentRide = null;
+                toggleDriverStatus(true); // Go back online
+            } else {
+                const { data, error } = await supabase.from('rides').update({ 
+                    ride_status: newStatus,
+                    started_at: new Date().toISOString()
+                }).eq('id', currentRide.id).select().single();
+
+                if(error) {
+                    tg.showAlert("Не удалось обновить статус поездки");
+                } else {
+                    currentRide = data;
+                    document.getElementById('trip-header').firstElementChild.innerText = newHeaderText;
+                    button.innerText = newButtonText;
+                }
+            }
+        }
+
+    </script>
 </body>
 </html>
-
