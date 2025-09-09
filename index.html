@@ -44,7 +44,7 @@
         <!-- Map container -->
         <div id="map" class="absolute inset-0 z-0"></div>
 
-        <!-- Loading Screen -->
+        <!-- Loading Screen (will be hidden almost immediately) -->
         <div id="loading-screen" class="absolute inset-0 z-50 flex flex-col items-center justify-center bg-gray-900 bg-opacity-80 backdrop-blur-sm">
             <svg class="animate-spin h-10 w-10 text-white mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
@@ -52,30 +52,10 @@
             </svg>
             <p class="text-lg">Загрузка приложения...</p>
         </div>
-        
-        <!-- Registration Screen (Can be repurposed for profile editing) -->
-        <div id="registration-screen" class="hidden absolute inset-0 z-40 flex items-end justify-center">
-            <div class="bg-gray-800 w-full rounded-t-2xl p-6 shadow-lg">
-                <h2 class="text-2xl font-bold mb-4">Ваш профиль</h2>
-                <form id="registration-form">
-                    <div class="mb-4">
-                        <label for="full_name" class="block text-sm font-medium text-gray-300 mb-1">Ваше имя</label>
-                        <input type="text" id="full_name" class="w-full bg-gray-700 border border-gray-600 rounded-lg p-3 text-white focus:ring-2 focus:ring-blue-500 focus:outline-none" required placeholder="Иван Иванов">
-                    </div>
-                    <div class="mb-6">
-                        <label for="phone" class="block text-sm font-medium text-gray-300 mb-1">Номер телефона</label>
-                        <input type="tel" id="phone" class="w-full bg-gray-700 border border-gray-600 rounded-lg p-3 text-white focus:ring-2 focus:ring-blue-500 focus:outline-none" required placeholder="+7 (999) 123-45-67">
-                    </div>
-                    <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg transition-colors">
-                        Сохранить
-                    </button>
-                </form>
-            </div>
-        </div>
 
         <!-- Main UI container -->
         <div id="main-ui" class="absolute inset-0 z-10 pointer-events-none">
-            <!-- Passenger UI -->
+            <!-- Passenger UI (Shown by default) -->
             <div id="passenger-ui" class="hidden h-full w-full">
                 <div id="passenger-controls" class="bottom-sheet absolute bottom-0 left-0 right-0 h-[35%] bg-gray-800 rounded-t-2xl shadow-2xl p-4 flex flex-col pointer-events-auto">
                     <!-- State: Idle -->
@@ -185,7 +165,6 @@
                            <p id="trip-address" class="text-gray-300">ул. Пушкина, д. 1</p>
                         </div>
                         <div class="my-4 flex-grow flex items-center justify-center">
-                            <!-- Could show passenger info here -->
                             <p class="text-gray-500">Навигация (внешняя)</p>
                         </div>
                         <button id="trip-action-btn" class="w-full bg-blue-600 hover:bg-blue-700 font-bold py-3 rounded-lg transition-colors">
@@ -216,18 +195,10 @@
         // --- UI ELEMENTS ---
         const ui = {
             loadingScreen: document.getElementById('loading-screen'),
-            registrationScreen: document.getElementById('registration-screen'),
             passengerUI: document.getElementById('passenger-ui'),
             passengerControls: document.getElementById('passenger-controls'),
-            passengerIdle: document.getElementById('passenger-idle-state'),
-            passengerRequesting: document.getElementById('passenger-requesting-state'),
-            passengerOnTrip: document.getElementById('passenger-ontrip-state'),
             driverUI: document.getElementById('driver-ui'),
             driverControls: document.getElementById('driver-controls'),
-            driverOffline: document.getElementById('driver-offline-state'),
-            driverOnline: document.getElementById('driver-online-state'),
-            driverRequest: document.getElementById('driver-request-state'),
-            driverOnTrip: document.getElementById('driver-ontrip-state'),
             pickupLocationInput: document.getElementById('pickup-location'),
             requestRideBtn: document.getElementById('request-ride-btn'),
             cancelRideBtn: document.getElementById('cancel-ride-btn'),
@@ -241,7 +212,7 @@
         // --- INITIALIZATION ---
         document.addEventListener('DOMContentLoaded', main);
 
-        async function main() {
+        function main() {
             lucide.createIcons();
             tg = window.Telegram.WebApp;
             tg.expand();
@@ -250,7 +221,14 @@
             supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
             
             initializeMap();
-            await authenticateUser();
+
+            // NEW: Immediately show the default UI to avoid getting stuck
+            console.log('Showing default passenger UI immediately.');
+            ui.loadingScreen.classList.add('hidden');
+            loadRoleUI('passenger'); // Show passenger UI by default
+
+            // Authenticate in the background
+            authenticateUserInBackground();
         }
 
         function initializeMap() {
@@ -284,18 +262,13 @@
         }
 
         // --- AUTH & USER LOGIC ---
-        async function authenticateUser() {
-            console.log('Attempting to authenticate user...');
-            ui.loadingScreen.classList.remove('hidden'); // Show loading screen
-
+        async function authenticateUserInBackground() {
+            console.log('Authenticating user in the background...');
             try {
-                console.log('Telegram.WebApp.initDataUnsafe:', tg.initDataUnsafe);
-                
-                // Use live user data, with a fallback for local testing ONLY if initData is empty
                 const telegramUser = tg.initDataUnsafe?.user || (Object.keys(tg.initDataUnsafe || {}).length === 0 ? { id: 987654321, first_name: "Test", last_name: "User" } : null);
 
                 if (!telegramUser || !telegramUser.id) {
-                    throw new Error("Не удалось получить данные пользователя Telegram. Попробуйте перезапустить приложение.");
+                    throw new Error("Не удалось получить данные пользователя Telegram.");
                 }
                 
                 const telegramId = telegramUser.id;
@@ -307,7 +280,7 @@
                     .eq('telegram_id', telegramId)
                     .single();
 
-                if (fetchError && fetchError.code === 'PGRST116') { // User not found, create them
+                if (fetchError && fetchError.code === 'PGRST116') {
                     console.log('User not found. Creating a new profile automatically.');
                     const newProfile = {
                         telegram_id: telegramId,
@@ -328,18 +301,21 @@
 
                 console.log('User authenticated:', user);
                 currentUser = user;
-                loadRoleUI(currentUser.role);
+
+                // If user is a driver, switch the UI.
+                if (currentUser.role === 'driver') {
+                    console.log('User is a driver, switching UI.');
+                    loadRoleUI('driver');
+                } else {
+                    console.log('User is a passenger. UI is already set.');
+                }
 
             } catch (err) {
-                console.error("Authentication failed:", err);
-                tg.showAlert(`Ошибка входа: ${err.message}. Пожалуйста, проверьте интернет-соединение и попробуйте перезапустить приложение.`);
-            } finally {
-                // This will ALWAYS run, ensuring the loading screen is hidden.
-                console.log('Authentication flow finished. Hiding loading screen.');
-                ui.loadingScreen.classList.add('hidden');
+                console.error("Background authentication failed:", err);
+                tg.showAlert(`Ошибка фоновой авторизации: ${err.message}.`);
             }
         }
-
+        
         // --- UI & ROLE MANAGEMENT ---
         function setPassengerState(state) {
             ['idle', 'requesting', 'ontrip'].forEach(s => {
@@ -366,9 +342,6 @@
                 setDriverState('offline');
                 setupDriverListeners();
             } else { // Default to passenger
-                if (role !== 'passenger') {
-                    console.warn(`Unknown or null role "${role}", defaulting to 'passenger'.`);
-                }
                 ui.passengerUI.classList.remove('hidden');
                 ui.driverUI.classList.add('hidden');
                 ui.passengerControls.classList.add('active');
@@ -376,7 +349,7 @@
                 setupPassengerListeners();
             }
         }
-
+        
         // --- PASSENGER LOGIC ---
         function setupPassengerListeners() {
             ui.requestRideBtn.onclick = requestRide;
@@ -384,28 +357,18 @@
         }
         
         async function requestRide() {
+            if (!currentUser) { tg.showAlert('Пожалуйста, подождите, идет авторизация.'); return; }
             const destination = document.getElementById('destination-location').value;
-            if (!destination) {
-                tg.showAlert('Пожалуйста, укажите пункт назначения.');
-                return;
-            }
+            if (!destination) { tg.showAlert('Пожалуйста, укажите пункт назначения.'); return; }
             
             setPassengerState('requesting');
             const userCoords = userMarker.getLngLat();
-
-            // Convert coordinates to PostGIS geography format
             const pickupPoint = `POINT(${userCoords.lng} ${userCoords.lat})`;
 
             const { data, error } = await supabase
                 .from('rides')
-                .insert({
-                    passenger_id: currentUser.id,
-                    pickup_location: 'Текущее местоположение',
-                    destination_location: destination,
-                    pickup_point: pickupPoint,
-                })
-                .select()
-                .single();
+                .insert({ passenger_id: currentUser.id, pickup_location: 'Текущее местоположение', destination_location: destination, pickup_point: pickupPoint })
+                .select().single();
                 
             if (error) {
                 console.error("Ride request error:", error);
@@ -419,15 +382,9 @@
 
         async function cancelRide() {
             if (!currentRide) return;
-            
-            const { error } = await supabase
-                .from('rides')
-                .update({ ride_status: 'cancelled', cancelled_at: new Date().toISOString() })
-                .eq('id', currentRide.id);
-
-            if (error) {
-                 tg.showAlert("Не удалось отменить заказ.");
-            } else {
+            const { error } = await supabase.from('rides').update({ ride_status: 'cancelled', cancelled_at: new Date().toISOString() }).eq('id', currentRide.id);
+            if (error) { tg.showAlert("Не удалось отменить заказ."); } 
+            else {
                  if (rideSubscription) rideSubscription.unsubscribe();
                  currentRide = null;
                  setPassengerState('idle');
@@ -437,9 +394,7 @@
         
         function listenToRideUpdates(rideId) {
             if (rideSubscription) rideSubscription.unsubscribe();
-
-            rideSubscription = supabase
-                .channel(`public:rides:id=eq.${rideId}`)
+            rideSubscription = supabase.channel(`public:rides:id=eq.${rideId}`)
                 .on('postgres_changes', { event: '*', schema: 'public', table: 'rides', filter: `id=eq.${rideId}` }, async (payload) => {
                     console.log('Ride update received:', payload);
                     currentRide = payload.new;
@@ -448,18 +403,8 @@
                         setPassengerState('ontrip');
                         tg.HapticFeedback.notificationOccurred('success');
                         
-                        // Fetch driver and vehicle info
-                        const {data: driverData} = await supabase
-                            .from('user_profiles')
-                            .select('full_name, avatar_url, rating')
-                            .eq('id', currentRide.driver_id)
-                            .single();
-                        
-                        const {data: vehicleData} = await supabase
-                            .from('vehicles')
-                            .select('brand, model, plate_number')
-                            .eq('driver_id', currentRide.driver_id)
-                            .single();
+                        const {data: driverData} = await supabase.from('user_profiles').select('full_name, avatar_url, rating').eq('id', currentRide.driver_id).single();
+                        const {data: vehicleData} = await supabase.from('vehicles').select('brand, model, plate_number').eq('driver_id', currentRide.driver_id).single();
                         
                         if(driverData) {
                             document.getElementById('driver-name').innerText = driverData.full_name;
@@ -474,10 +419,8 @@
                         if (rideSubscription) rideSubscription.unsubscribe();
                         currentRide = null;
                         setPassengerState('idle');
-                        // Here you would show a rating screen
                     }
-                })
-                .subscribe();
+                }).subscribe();
         }
 
         // --- DRIVER LOGIC ---
@@ -506,55 +449,26 @@
         
         function listenForRideRequests() {
             if (rideRequestSubscription) return;
-
-            rideRequestSubscription = supabase
-                .channel('public:rides:requesting')
+            rideRequestSubscription = supabase.channel('public:rides:requesting')
                 .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'rides', filter: 'ride_status=eq.requesting' }, (payload) => {
-                    console.log('New ride request:', payload.new);
-                    // Avoid taking a ride if already on one.
                     if(currentRide) return; 
-
                     currentRide = payload.new;
                     document.getElementById('request-pickup').innerText = currentRide.pickup_location;
                     document.getElementById('request-destination').innerText = currentRide.destination_location;
                     setDriverState('request');
                     tg.HapticFeedback.notificationOccurred('success');
-                })
-                .subscribe();
+                }).subscribe();
         }
         
         async function acceptRide() {
             if (!currentRide) return;
-            
-            // Fetch vehicle id
-            const {data: vehicle, error: vehicleError} = await supabase
-                .from('vehicles')
-                .select('id')
-                .eq('driver_id', currentUser.id)
-                .single();
-            
-            if(vehicleError || !vehicle) {
-                tg.showAlert('Не удалось найти ваш автомобиль. Проверьте профиль.');
-                return;
-            }
+            const {data: vehicle, error: vehicleError} = await supabase.from('vehicles').select('id').eq('driver_id', currentUser.id).single();
+            if(vehicleError || !vehicle) { tg.showAlert('Не удалось найти ваш автомобиль. Проверьте профиль.'); return; }
 
-            const { error } = await supabase
-                .from('rides')
-                .update({
-                    driver_id: currentUser.id,
-                    vehicle_id: vehicle.id,
-                    ride_status: 'accepted',
-                    accepted_at: new Date().toISOString()
-                })
-                .eq('id', currentRide.id);
-
-            if (error) {
-                tg.showAlert("Не удалось принять заказ.");
-            } else {
-                if (rideRequestSubscription) {
-                    rideRequestSubscription.unsubscribe();
-                    rideRequestSubscription = null;
-                }
+            const { error } = await supabase.from('rides').update({ driver_id: currentUser.id, vehicle_id: vehicle.id, ride_status: 'accepted', accepted_at: new Date().toISOString() }).eq('id', currentRide.id);
+            if (error) { tg.showAlert("Не удалось принять заказ."); } 
+            else {
+                if (rideRequestSubscription) { rideRequestSubscription.unsubscribe(); rideRequestSubscription = null; }
                 document.getElementById('trip-address').innerText = currentRide.pickup_location;
                 setDriverState('ontrip');
             }
@@ -562,7 +476,7 @@
         
         function declineRide() {
             currentRide = null;
-            setDriverState('online'); // Go back to waiting for orders
+            setDriverState('online');
         }
 
         async function handleTripAction() {
@@ -578,24 +492,15 @@
             } else if (currentStatus === 'started') {
                 newStatus = 'completed';
                 updatePayload = { ride_status: newStatus, completed_at: new Date().toISOString() };
-            } else {
-                return; // No action for other statuses
-            }
+            } else { return; }
 
-            const { data, error } = await supabase
-                .from('rides')
-                .update(updatePayload)
-                .eq('id', currentRide.id)
-                .select()
-                .single();
-
-            if (error) {
-                tg.showAlert("Не удалось обновить статус поездки");
-            } else {
+            const { data, error } = await supabase.from('rides').update(updatePayload).eq('id', currentRide.id).select().single();
+            if (error) { tg.showAlert("Не удалось обновить статус поездки"); } 
+            else {
                 currentRide = data;
                 if (newStatus === 'completed') {
                     currentRide = null;
-                    toggleDriverStatus(true); // Go back online
+                    toggleDriverStatus(true);
                 } else {
                     document.getElementById('trip-header').firstElementChild.innerText = newHeaderText;
                     button.innerText = newButtonText;
