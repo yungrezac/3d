@@ -17,16 +17,18 @@
 
     <style>
         body, html { overscroll-behavior: none; overflow: hidden; height: 100%; width: 100%; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }
-        .bottom-sheet { touch-action: none; transition: transform 0.4s cubic-bezier(0.25, 0.8, 0.25, 1); } /* Обновлен transition */
+        .bottom-sheet { touch-action: none; transition: transform 0.4s cubic-bezier(0.25, 0.8, 0.25, 1); }
         .loader { border: 4px solid #f3f3f3; border-top: 4px solid #3b82f6; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
         .driver-marker { background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="%233B82F6" stroke="white" stroke-width="2"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg>'); background-size: contain; width: 40px; height: 40px; }
         .mapboxgl-ctrl-geocoder { width: 100% !important; max-width: none !important; box-shadow: none; }
         .mapboxgl-ctrl-geocoder--input { height: 48px !important; padding-left: 40px !important; background-color: #f3f4f6; border-radius: 0.5rem; border: transparent; }
         .mapboxgl-ctrl-geocoder--icon { top: 12px !important; left: 12px !important; }
-        .custom-marker { display: flex; align-items: center; justify-content: center; background-color: #3b82f6; color: white; width: 30px; height: 30px; border-radius: 50%; border: 2px solid white; font-weight: bold; }
+        .custom-marker { display: flex; align-items: center; justify-content: center; background-color: #3b82f6; color: white; width: 30px; height: 30px; border-radius: 50%; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.2); font-weight: bold; }
         .screen { position: absolute; inset: 0; z-index: 30; background-color: #f9fafb; display: flex; flex-direction: column; transform: translateX(100%); transition: transform 0.3s ease-in-out; }
         .screen.active { transform: translateX(0); }
+        .state-screen { animation: fadeIn 0.3s ease-in-out; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
     </style>
 </head>
 <body class="bg-gray-100">
@@ -37,24 +39,23 @@
     </div>
 
     <div id="app-container" class="relative h-screen w-screen hidden">
-        <!-- КАРТА ВСЕГДА НА ФОНЕ -->
         <div id="map" class="absolute inset-0 z-0"></div>
 
-        <!-- Интерфейс Пассажира (поверх карты) -->
+        <!-- Интерфейс Пассажира -->
         <div id="passenger-ui" class="hidden z-10">
-            <div id="bottom-sheet" class="bottom-sheet absolute bottom-0 left-0 right-0 bg-white rounded-t-2xl shadow-2xl p-4 flex flex-col" style="transform: translateY(calc(100% - 300px));">
+            <div id="bottom-sheet" class="bottom-sheet absolute bottom-0 left-0 right-0 bg-white rounded-t-2xl shadow-2xl p-4 flex flex-col" style="transform: translateY(calc(100% - 320px));">
                 <div id="sheet-handle" class="w-12 h-1.5 bg-gray-300 rounded-full mx-auto mb-4 cursor-grab"></div>
-                <div id="sheet-content">
-                    <div id="order-form-state"><h2 class="text-2xl font-bold text-gray-800 text-center mb-4">Куда поедем?</h2><div class="space-y-3"><div id="from-geocoder"></div><div id="to-geocoder"></div></div><button id="order-button" class="w-full bg-blue-600 text-white font-bold py-3.5 rounded-lg mt-5 transition-all disabled:bg-gray-400">Выберите адрес</button></div>
-                    <div id="searching-state" class="hidden text-center py-8"><div class="loader mx-auto"></div><h3 class="text-xl font-semibold mt-4">Ищем машину...</h3><button id="cancel-search-button" class="w-full bg-red-600 text-white font-bold py-3.5 rounded-lg mt-6">Отменить поиск</button></div>
-                    <div id="driver-found-state" class="hidden"><h2 id="ride-title" class="text-2xl font-bold text-gray-800 text-center mb-2">Водитель в пути!</h2><div class="bg-gray-100 p-3 rounded-lg flex items-center space-x-4"><img id="driver-avatar" src="https://placehold.co/60x60/E2E8F0/A0AEC0?text=A" class="w-14 h-14 rounded-full"><div><p id="driver-name" class="font-bold text-lg">Водитель</p><p id="driver-car" class="text-gray-600">Машина</p></div><div class="flex-grow text-right"><p id="driver-car-plate" class="font-mono bg-white border border-gray-300 px-2 py-1 rounded">A123BC</p></div></div><div class="mt-4 text-center"><p id="ride-status-passenger" class="text-lg font-medium text-blue-600">Водитель едет к вам</p></div></div>
+                <div id="sheet-content" class="overflow-y-auto">
+                    <div id="order-form-state" class="state-screen"><h2 class="text-2xl font-bold text-gray-800 text-center mb-2">Куда поедем?</h2><div id="car-class-selector" class="flex justify-around items-center bg-gray-100 rounded-lg p-1 my-4"></div><div class="space-y-3"><div id="from-geocoder"></div><div id="to-geocoder"></div></div><button id="order-button" class="w-full bg-blue-600 text-white font-bold py-3.5 rounded-lg mt-5 transition-all disabled:bg-gray-400 disabled:shadow-none shadow-lg shadow-blue-500/50">Выберите адрес</button></div>
+                    <div id="searching-state" class="hidden state-screen text-center py-8"><div class="loader mx-auto"></div><h3 class="text-xl font-semibold mt-4">Ищем машину...</h3><p class="text-gray-500">Это может занять до минуты</p><button id="cancel-search-button" class="w-full bg-red-600 text-white font-bold py-3.5 rounded-lg mt-6">Отменить поиск</button></div>
+                    <div id="driver-found-state" class="hidden state-screen"><h2 id="ride-title" class="text-2xl font-bold text-gray-800 text-center mb-4">Водитель найден!</h2><div class="bg-gray-100 p-3 rounded-lg"><div class="flex items-center space-x-4"><img id="driver-avatar" src="https://placehold.co/60x60/E2E8F0/A0AEC0?text=A" class="w-14 h-14 rounded-full"><div><p id="driver-name" class="font-bold text-lg">Водитель</p><p id="driver-car" class="text-gray-600">Машина</p></div><div class="flex-grow text-right"><p id="driver-car-plate" class="font-mono bg-white border border-gray-300 px-2 py-1 rounded">A123BC</p></div></div></div><div class="mt-4 text-center"><p id="ride-status-eta" class="text-2xl font-bold text-blue-600">Водитель едет к вам</p><p id="ride-status-passenger" class="text-gray-500"></p></div></div>
                 </div>
             </div>
         </div>
 
-        <!-- Интерфейс Водителя (поверх карты) -->
+        <!-- Интерфейс Водителя -->
         <div id="driver-ui" class="hidden z-20 h-full w-full flex flex-col pointer-events-none">
-            <div class="bg-white p-4 flex justify-between items-center border-b pointer-events-auto">
+            <div class="bg-white p-4 flex justify-between items-center border-b pointer-events-auto shadow-sm">
                 <h1 class="text-2xl font-bold">Заказы</h1>
                 <div class="flex items-center space-x-4">
                     <button id="profile-button"><i data-lucide="user-cog" class="w-6 h-6 text-gray-600"></i></button>
@@ -64,34 +65,38 @@
                     </div>
                 </div>
             </div>
-            <!-- Панель активного заказа -->
             <div id="active-ride-panel" class="hidden p-4 bg-white border-b pointer-events-auto">
                 <h2 class="text-xl font-bold mb-2">Активный заказ</h2>
-                <div class="space-y-2 text-sm"><p><strong>Откуда:</strong> <span id="active-ride-from"></span></p><p><strong>Куда:</strong> <span id="active-ride-to"></span></p><p><strong>Стоимость:</strong> <span id="active-ride-fare" class="font-bold"></span> руб.</p></div>
+                <div class="space-y-2 text-sm"><p><strong><i data-lucide="arrow-up-circle" class="inline w-4 h-4 mr-1"></i>Откуда:</strong> <span id="active-ride-from"></span></p><p><strong><i data-lucide="arrow-down-circle" class="inline w-4 h-4 mr-1"></i>Куда:</strong> <span id="active-ride-to"></span></p><p><strong><i data-lucide="wallet" class="inline w-4 h-4 mr-1"></i>Стоимость:</strong> <span id="active-ride-fare" class="font-bold"></span> руб.</p></div>
                 <div id="driver-action-buttons" class="mt-4 space-y-2"></div>
             </div>
-             <!-- Панель со списком заказов -->
-            <div id="orders-panel" class="flex-grow flex flex-col bg-white pointer-events-auto">
+            <div id="orders-panel" class="flex-grow flex flex-col bg-white/90 backdrop-blur-sm pointer-events-auto">
                 <h2 class="text-xl font-bold px-4 pt-4">Доступные заказы</h2>
-                <div id="orders-list" class="flex-grow overflow-y-auto space-y-3 p-4">
+                <div id="orders-list-container" class="flex-grow overflow-y-auto p-4">
+                    <div id="orders-list" class="space-y-3"></div>
+                    <div id="orders-list-skeleton" class="hidden space-y-3"><div class="bg-gray-200 p-4 rounded-lg animate-pulse"><div class="h-4 bg-gray-300 rounded w-3/4 mb-2"></div><div class="h-3 bg-gray-300 rounded w-1/2 mb-3"></div><div class="h-3 bg-gray-300 rounded w-1/4"></div><div class="h-10 bg-gray-300 rounded w-full mt-4"></div></div><div class="bg-gray-200 p-4 rounded-lg animate-pulse"><div class="h-4 bg-gray-300 rounded w-3/4 mb-2"></div><div class="h-3 bg-gray-300 rounded w-1/2 mb-3"></div><div class="h-3 bg-gray-300 rounded w-1/4"></div><div class="h-10 bg-gray-300 rounded w-full mt-4"></div></div></div>
                     <div id="no-orders-placeholder" class="text-center py-10 text-gray-500"><i data-lucide="inbox" class="w-12 h-12 mx-auto"></i><p class="mt-2">Нет доступных заказов</p></div>
                 </div>
             </div>
         </div>
         
-        <!-- Экран Профиля Водителя (выезжающий) -->
+        <!-- Экран Профиля Водителя -->
         <div id="driver-profile-screen" class="screen">
             <div class="bg-white p-4 flex items-center border-b"><button id="back-to-orders-button"><i data-lucide="arrow-left" class="w-6 h-6"></i></button><h1 class="text-2xl font-bold text-center flex-grow mr-6">Мой автомобиль</h1></div>
             <div class="flex-grow overflow-y-auto p-4 space-y-4">
-                <div><label class="font-medium text-gray-700">Марка</label><input id="car-brand" type="text" placeholder="Например, Lada" class="w-full mt-1 p-2 bg-gray-100 rounded border focus:outline-none focus:ring-2 focus:ring-blue-500"></div>
-                <div><label class="font-medium text-gray-700">Модель</label><input id="car-model" type="text" placeholder="Например, Vesta" class="w-full mt-1 p-2 bg-gray-100 rounded border focus:outline-none focus:ring-2 focus:ring-blue-500"></div>
-                <div><label class="font-medium text-gray-700">Год выпуска</label><input id="car-year" type="number" placeholder="2023" class="w-full mt-1 p-2 bg-gray-100 rounded border focus:outline-none focus:ring-2 focus:ring-blue-500"></div>
-                <div><label class="font-medium text-gray-700">Цвет</label><input id="car-color" type="text" placeholder="Белый" class="w-full mt-1 p-2 bg-gray-100 rounded border focus:outline-none focus:ring-2 focus:ring-blue-500"></div>
-                <div><label class="font-medium text-gray-700">Гос. номер</label><input id="car-plate" type="text" placeholder="А123БВ 777" class="w-full mt-1 p-2 bg-gray-100 rounded border focus:outline-none focus:ring-2 focus:ring-blue-500"></div>
-                <div><label class="font-medium text-gray-700">Класс</label><select id="car-class" class="w-full mt-1 p-2 bg-gray-100 rounded border focus:outline-none focus:ring-2 focus:ring-blue-500"><option value="economy">Эконом</option><option value="comfort">Комфорт</option><option value="business">Бизнес</option></select></div>
+                <div><label class="font-medium text-gray-700">Марка</label><input id="car-brand" type="text" placeholder="Например, Lada" class="w-full mt-1 p-3 bg-gray-100 rounded-lg border focus:outline-none focus:ring-2 focus:ring-blue-500"></div>
+                <div><label class="font-medium text-gray-700">Модель</label><input id="car-model" type="text" placeholder="Например, Vesta" class="w-full mt-1 p-3 bg-gray-100 rounded-lg border focus:outline-none focus:ring-2 focus:ring-blue-500"></div>
+                <div><label class="font-medium text-gray-700">Год выпуска</label><input id="car-year" type="number" placeholder="2023" class="w-full mt-1 p-3 bg-gray-100 rounded-lg border focus:outline-none focus:ring-2 focus:ring-blue-500"></div>
+                <div><label class="font-medium text-gray-700">Цвет</label><input id="car-color" type="text" placeholder="Белый" class="w-full mt-1 p-3 bg-gray-100 rounded-lg border focus:outline-none focus:ring-2 focus:ring-blue-500"></div>
+                <div><label class="font-medium text-gray-700">Гос. номер</label><input id="car-plate" type="text" placeholder="А123БВ 777" class="w-full mt-1 p-3 bg-gray-100 rounded-lg border focus:outline-none focus:ring-2 focus:ring-blue-500"></div>
+                <div><label class="font-medium text-gray-700">Класс</label><select id="car-class" class="w-full mt-1 p-3 bg-gray-100 rounded-lg border focus:outline-none focus:ring-2 focus:ring-blue-500"><option value="economy">Эконом</option><option value="comfort">Комфорт</option><option value="business">Бизнес</option></select></div>
             </div>
             <div class="p-4 border-t bg-white"><button id="save-vehicle-button" class="w-full bg-blue-600 text-white font-bold py-3 rounded-lg active:bg-blue-700">Сохранить</button></div>
         </div>
+    </div>
+    
+    <div id="toast-notification" class="fixed top-5 right-5 bg-gray-800 text-white py-2 px-4 rounded-lg shadow-lg opacity-0 translate-y-[-20px] transition-all duration-300 z-[100]">
+      <p id="toast-message"></p>
     </div>
 
 <script>
@@ -100,21 +105,24 @@ document.addEventListener('DOMContentLoaded', () => {
     const SUPABASE_URL = 'https://skoobtvzeojdmvjsexdm.supabase.co';
     const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNrb29idHZ6ZW9qZG12anNleGRtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTcyMTI5MjksImV4cCI6MjA3Mjc4ODkyOX0.3rtdGA9o07WUV8pKZctK4pA6VJyaUjn5MeZR-bigzP8';
     const MAPBOX_TOKEN = 'pk.eyJ1IjoieXVuZ3JlemFjIiwiYSI6ImNtOW10ZzJ6bDBjNHUyanI3ejc5eXo1d2MifQ._tryk9cXjfReUGLGnNkm6Q';
-    const FARE_CONFIG = { base: 150, perKm: 25, perMin: 10 };
+    const FARE_CONFIG = {
+        economy: { base: 130, perKm: 20, perMin: 8, name: 'Эконом' },
+        comfort: { base: 180, perKm: 28, perMin: 12, name: 'Комфорт' },
+        business: { base: 250, perKm: 40, perMin: 20, name: 'Бизнес' },
+    };
 
-    // --- Глобальное состояние приложения ---
+    // --- Глобальное состояние ---
     let supabaseClient, tg, map, currentUser;
     let fromCoords, toCoords, fromAddress, toAddress;
     let fromMarker, toMarker, driverMarker;
     let rideUpdateChannel, locationChannel, driverLocationWatcherId;
-    let currentRideId = null;
-    let driverCurrentLocation = null;
-    let driverHasVehicle = false;
+    let currentRideId = null, driverCurrentLocation = null, driverHasVehicle = false;
+    let selectedCarClass = 'economy';
+    let toastTimeout;
 
     // --- Основная функция инициализации ---
     async function main() {
         try {
-            console.log("Приложение запускается...");
             tg = window.Telegram?.WebApp;
             if (!tg || !tg.initData) return showError("Пожалуйста, запустите приложение внутри Telegram.", true);
             tg.ready(); tg.expand();
@@ -130,17 +138,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
             showLoader("Загрузка карты...");
             const userLocation = await getCurrentLocation();
-            initializeMap(userLocation); // Карта инициализируется один раз для всех
+            initializeMap(userLocation);
 
-            if (currentUser.role === 'driver') {
-                await setupDriverScreen();
-            } else {
-                await setupPassengerScreen();
-            }
+            if (currentUser.role === 'driver') await setupDriverScreen();
+            else await setupPassengerScreen();
 
             hideLoader();
             lucide.createIcons();
-            console.log("Приложение успешно инициализировано.");
         } catch (error) {
             console.error("Критическая ошибка при инициализации:", error);
             showError(`Критическая ошибка: ${error.message}`, true);
@@ -161,7 +165,6 @@ document.addEventListener('DOMContentLoaded', () => {
             if (insertError) throw insertError;
             return newUser;
         } catch (error) {
-            console.error("Ошибка в getOrCreateUser:", error);
             showError(`Ошибка авторизации: ${error.message}`);
             return null;
         }
@@ -169,22 +172,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Карта и Геолокация ---
     function initializeMap(center) {
-        map = new mapboxgl.Map({ 
-            container: 'map', style: 'mapbox://styles/mapbox/streets-v12', 
-            center: center, zoom: 14 
-        });
+        map = new mapboxgl.Map({ container: 'map', style: 'mapbox://styles/mapbox/streets-v12', center, zoom: 14 });
         map.addControl(new mapboxgl.NavigationControl(), 'top-right');
         map.addControl(new mapboxgl.GeolocateControl({ trackUserLocation: true }), 'top-right');
     }
 
     function getCurrentLocation() {
-        return new Promise((resolve) => {
+        return new Promise(resolve => {
             const fallback = () => resolve([46.3075, 56.3294]); // Координаты Козьмодемьянска
-            const success = (pos) => resolve([pos.coords.longitude, pos.coords.latitude]);
-            const error = (err) => { console.warn(`Ошибка геолокации: ${err.message}`); fallback(); };
-            const watchId = setTimeout(fallback, 10000);
             navigator.geolocation.getCurrentPosition(
-                (pos) => { clearTimeout(watchId); success(pos); }, error, 
+                pos => resolve([pos.coords.longitude, pos.coords.latitude]), 
+                () => fallback(), 
                 { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
             );
         });
@@ -193,40 +191,10 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Интерфейс и логика Пассажира ---
     async function setupPassengerScreen() {
         document.getElementById('passenger-ui').classList.remove('hidden');
-        const orderButton = document.getElementById('order-button');
-        orderButton.disabled = true;
-
-        // НОВОЕ: Логика для управления высотой шторки
-        const bottomSheet = document.getElementById('bottom-sheet');
-        const sheetContent = document.getElementById('sheet-content');
-
-        const expandSheet = () => {
-            bottomSheet.style.transform = 'translateY(15vh)'; // Поднимаем на 85% высоты экрана
-        };
-
-        const collapseSheet = () => {
-             // Проверяем, не активен ли сейчас ввод
-            const focusedElement = document.activeElement;
-            if (focusedElement && focusedElement.classList.contains('mapboxgl-ctrl-geocoder--input')) {
-                return; // Не закрываем, если фокус все еще в инпуте
-            }
-            bottomSheet.style.transform = 'translateY(calc(100% - 300px))';
-        };
-
-        // Добавляем слушатели на контейнер, чтобы поймать фокус на динамически созданных инпутах
-        sheetContent.addEventListener('focusin', (e) => {
-            if (e.target.classList.contains('mapboxgl-ctrl-geocoder--input')) {
-                expandSheet();
-            }
-        });
-        sheetContent.addEventListener('focusout', (e) => {
-             if (e.target.classList.contains('mapboxgl-ctrl-geocoder--input')) {
-                // Небольшая задержка, чтобы позволить кликнуть на другой элемент (например, результат поиска)
-                setTimeout(collapseSheet, 200);
-            }
-        });
-
-        const geocoderOptions = (placeholder) => ({ accessToken: MAPBOX_TOKEN, mapboxgl: mapboxgl, marker: false, placeholder: placeholder, countries: 'RU', bbox: [46.2, 56.25, 46.4, 56.4] }); // Ограничиваем поиск Козьмодемьянском
+        setupCarClassSelector();
+        setupBottomSheet();
+        
+        const geocoderOptions = (placeholder) => ({ accessToken: MAPBOX_TOKEN, mapboxgl, marker: false, placeholder, countries: 'RU', bbox: [46.2, 56.25, 46.4, 56.4] });
         const fromGeocoder = new MapboxGeocoder(geocoderOptions('Откуда'));
         document.getElementById('from-geocoder').appendChild(fromGeocoder.onAdd(map));
         const toGeocoder = new MapboxGeocoder(geocoderOptions('Куда'));
@@ -237,11 +205,46 @@ document.addEventListener('DOMContentLoaded', () => {
         fromGeocoder.setInput(formatAddress(fromAddress) || '');
         updateMapMarkers();
 
-        fromGeocoder.on('result', (e) => { fromCoords = e.result.geometry.coordinates; fromAddress = e.result.place_name; fromGeocoder.setInput(formatAddress(fromAddress)); updateMapMarkers(); calculateAndDisplayFare(); });
-        toGeocoder.on('result', (e) => { toCoords = e.result.geometry.coordinates; toAddress = e.result.place_name; toGeocoder.setInput(formatAddress(toAddress)); updateMapMarkers(); calculateAndDisplayFare(); });
+        const onResult = (setter, geocoder, isFrom) => (e) => {
+            const coords = e.result.geometry.coordinates;
+            const address = e.result.place_name;
+            setter(coords, address);
+            geocoder.setInput(formatAddress(address));
+            updateMapMarkers();
+            calculateAndDisplayFare();
+        };
+        fromGeocoder.on('result', onResult((c, a) => { fromCoords = c; fromAddress = a; }, fromGeocoder, true));
+        toGeocoder.on('result', onResult((c, a) => { toCoords = c; toAddress = a; }, toGeocoder, false));
         
-        orderButton.onclick = createRide;
+        document.getElementById('order-button').onclick = createRide;
         document.getElementById('cancel-search-button').onclick = cancelRide;
+    }
+
+    function setupCarClassSelector() {
+        const container = document.getElementById('car-class-selector');
+        container.innerHTML = '';
+        Object.keys(FARE_CONFIG).forEach(key => {
+            const config = FARE_CONFIG[key];
+            const button = document.createElement('button');
+            button.dataset.class = key;
+            button.className = 'w-full text-center py-2 px-3 rounded-md font-semibold transition-all text-gray-600';
+            button.innerHTML = `<span class="block">${config.name}</span><span class="block text-xs font-normal">~${config.base} ₽</span>`;
+            if (key === selectedCarClass) button.classList.add('bg-white', 'text-blue-600', 'shadow-sm');
+            button.onclick = () => { selectedCarClass = key; setupCarClassSelector(); calculateAndDisplayFare(); };
+            container.appendChild(button);
+        });
+    }
+
+    function setupBottomSheet() {
+        const sheet = document.getElementById('bottom-sheet');
+        const content = document.getElementById('sheet-content');
+        const expand = () => sheet.style.transform = 'translateY(15vh)';
+        const collapse = () => {
+            if (document.activeElement?.classList.contains('mapboxgl-ctrl-geocoder--input')) return;
+            sheet.style.transform = `translateY(calc(100% - ${sheet.querySelector('.state-screen:not(.hidden)').offsetHeight + 100}px))`;
+        };
+        content.addEventListener('focusin', e => e.target.classList.contains('mapboxgl-ctrl-geocoder--input') && expand());
+        content.addEventListener('focusout', () => setTimeout(collapse, 200));
     }
     
     // --- Интерфейс и логика Водителя ---
@@ -253,40 +256,41 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('back-to-orders-button').onclick = () => document.getElementById('driver-profile-screen').classList.remove('active');
         document.getElementById('save-vehicle-button').onclick = saveVehicleData;
         
-        const statusToggle = document.getElementById('driver-status-toggle');
-        statusToggle.addEventListener('change', async (e) => {
-            const isOnline = e.target.checked;
-            if (isOnline && !driverHasVehicle) {
-                tg.showAlert("Пожалуйста, добавьте информацию о вашем автомобиле в профиле, чтобы выйти на линию.");
-                e.target.checked = false;
-                return;
-            }
-
-            document.getElementById('driver-status-text').classList.toggle('text-green-600', isOnline);
-            document.getElementById('driver-status-text').textContent = isOnline ? 'На линии' : 'Офлайн';
-
-            if (isOnline) {
-                showLoader('Получение геолокации...');
-                driverCurrentLocation = await getCurrentLocation();
-                hideLoader();
-                subscribeToNewRides();
-                startSendingLocation();
-            } else {
-                if (rideUpdateChannel) rideUpdateChannel.unsubscribe();
-                stopSendingLocation();
-                document.getElementById('orders-list').innerHTML = '';
-                document.getElementById('no-orders-placeholder').classList.remove('hidden');
-            }
-        });
+        document.getElementById('driver-status-toggle').addEventListener('change', handleDriverStatusChange);
         await checkActiveRide();
     }
     
+    async function handleDriverStatusChange(e) {
+        const isOnline = e.target.checked;
+        if (isOnline && !driverHasVehicle) {
+            showToast("Сначала добавьте автомобиль в профиле");
+            e.target.checked = false;
+            return;
+        }
+
+        document.getElementById('driver-status-text').textContent = isOnline ? 'На линии' : 'Офлайн';
+        document.getElementById('driver-status-text').classList.toggle('text-green-600', isOnline);
+
+        if (isOnline) {
+            showLoader('Выход на линию...');
+            driverCurrentLocation = await getCurrentLocation();
+            hideLoader();
+            subscribeToNewRides();
+            startSendingLocation();
+        } else {
+            rideUpdateChannel?.unsubscribe();
+            stopSendingLocation();
+            document.getElementById('orders-list').innerHTML = '';
+            document.getElementById('no-orders-placeholder').classList.remove('hidden');
+        }
+    }
+
     async function checkDriverVehicle() {
-        const { data } = await supabaseClient.from('vehicles').select('id').eq('driver_id', currentUser.id).limit(1).single();
+        const { data } = await supabaseClient.from('vehicles').select('id').eq('driver_id', currentUser.id).single();
         driverHasVehicle = !!data;
         const placeholder = document.getElementById('no-orders-placeholder');
         if (!driverHasVehicle) {
-            placeholder.innerHTML = `<i data-lucide="car-front" class="w-12 h-12 mx-auto"></i><p class="mt-2">Добавьте автомобиль в профиле.</p>`;
+            placeholder.innerHTML = `<i data-lucide="car-front" class="w-12 h-12 mx-auto"></i><p class="mt-2">Добавьте автомобиль в профиле, чтобы начать работу.</p>`;
         } else {
              placeholder.innerHTML = `<i data-lucide="inbox" class="w-12 h-12 mx-auto"></i><p class="mt-2">Нет доступных заказов</p>`;
         }
@@ -297,12 +301,10 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('driver-profile-screen').classList.add('active');
         const { data } = await supabaseClient.from('vehicles').select('*').eq('driver_id', currentUser.id).single();
         if (data) {
-            document.getElementById('car-brand').value = data.brand || '';
-            document.getElementById('car-model').value = data.model || '';
-            document.getElementById('car-year').value = data.year || '';
-            document.getElementById('car-color').value = data.color || '';
-            document.getElementById('car-plate').value = data.plate_number || '';
-            document.getElementById('car-class').value = data.class || 'economy';
+            ['brand', 'model', 'year', 'color', 'plate', 'class'].forEach(key => {
+                const el = document.getElementById(`car-${key}`);
+                if (el) el.value = data[key === 'plate' ? 'plate_number' : key] || '';
+            });
         }
     }
     
@@ -316,32 +318,33 @@ document.addEventListener('DOMContentLoaded', () => {
             class: document.getElementById('car-class').value,
         };
         if (!vehicleData.brand || !vehicleData.model || !vehicleData.plate_number) {
-            tg.showAlert("Пожалуйста, заполните как минимум Марку, Модель и Гос. номер.");
+            showToast("Заполните Марку, Модель и Гос. номер.");
             button.disabled = false; button.textContent = "Сохранить"; return;
         }
         const { error } = await supabaseClient.from('vehicles').upsert(vehicleData, { onConflict: 'driver_id' });
-        if (error) {
-            tg.showAlert(`Ошибка сохранения: ${error.message}`);
-        } else {
-            tg.showPopup({ title: "Успешно!", message: "Данные об автомобиле сохранены." });
+        if (error) showToast(`Ошибка: ${error.message}`);
+        else {
+            showToast("Данные об автомобиле сохранены.");
             await checkDriverVehicle();
             document.getElementById('driver-profile-screen').classList.remove('active');
         }
         button.disabled = false; button.textContent = "Сохранить";
     }
 
+    // --- Логика Поездок ---
     async function calculateAndDisplayFare() {
-        const orderButton = document.getElementById('order-button');
-        if (!fromCoords || !toCoords) { orderButton.disabled = true; orderButton.textContent = 'Выберите адрес'; return; }
-        orderButton.disabled = true; orderButton.textContent = 'Расчет...';
+        const button = document.getElementById('order-button');
+        if (!fromCoords || !toCoords) { button.disabled = true; button.textContent = 'Выберите адрес'; return; }
+        button.disabled = true; button.textContent = 'Расчет...';
         const data = await getDirections(fromCoords, toCoords);
-        if (!data || !data.routes || data.routes.length === 0) { orderButton.textContent = 'Маршрут не найден'; return; }
+        if (!data?.routes?.length) { button.textContent = 'Маршрут не найден'; return; }
         const route = data.routes[0];
-        const fare = FARE_CONFIG.base + ((route.distance / 1000) * FARE_CONFIG.perKm) + ((route.duration / 60) * FARE_CONFIG.perMin);
+        const fareConfig = FARE_CONFIG[selectedCarClass];
+        const fare = fareConfig.base + ((route.distance / 1000) * fareConfig.perKm) + ((route.duration / 60) * fareConfig.perMin);
         const roundedFare = Math.ceil(fare / 10) * 10;
-        orderButton.textContent = `Заказать за ~${roundedFare} ₽`;
-        orderButton.dataset.fare = roundedFare;
-        orderButton.disabled = false;
+        button.textContent = `Заказать за ~${roundedFare} ₽`;
+        button.dataset.fare = roundedFare;
+        button.disabled = false;
     }
 
     async function createRide() {
@@ -351,14 +354,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 passenger_id: currentUser.id, pickup_location: formatAddress(fromAddress), destination_location: formatAddress(toAddress), 
                 pickup_latitude: fromCoords[1], pickup_longitude: fromCoords[0], 
                 destination_latitude: toCoords[1], destination_longitude: toCoords[0], 
-                fare_amount: document.getElementById('order-button').dataset.fare 
+                fare_amount: document.getElementById('order-button').dataset.fare, class: selectedCarClass,
             }).select().single();
             if (error) throw error;
             currentRideId = ride.id;
             subscribeToRideUpdates(ride.id);
         } catch (error) {
             switchPassengerState('order-form-state');
-            tg.showAlert(`Не удалось создать заказ: ${error.message}`);
+            showToast(`Не удалось создать заказ: ${error.message}`);
         }
     }
 
@@ -370,154 +373,149 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     function subscribeToRideUpdates(rideId) {
-        if (rideUpdateChannel) rideUpdateChannel.unsubscribe();
-        rideUpdateChannel = supabaseClient.channel(`public:rides:id=eq.${rideId}`)
-            .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'rides', filter: `id=eq.${rideId}` }, (payload) => {
-                updatePassengerRideStatus(payload.new);
-            }).subscribe();
+        rideUpdateChannel?.unsubscribe();
+        rideUpdateChannel = supabaseClient.channel(`ride-${rideId}`)
+            .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'rides', filter: `id=eq.${rideId}` }, p => updatePassengerRideStatus(p.new))
+            .subscribe();
     }
     
     function subscribeToNewRides() {
         renderAvailableRides();
-        if (rideUpdateChannel) rideUpdateChannel.unsubscribe();
+        rideUpdateChannel?.unsubscribe();
         rideUpdateChannel = supabaseClient.channel('public:rides')
-          .on('postgres_changes', { event: '*', schema: 'public', table: 'rides' }, (payload) => {
-              renderAvailableRides();
-              checkActiveRide();
-          })
-          .subscribe((status) => {
-              if (status === 'SUBSCRIBED') console.log('Успешно подписан на заказы!');
-          });
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'rides' }, () => { renderAvailableRides(); checkActiveRide(); })
+          .subscribe();
     }
 
     async function renderAvailableRides() {
-        if (!driverHasVehicle) return;
-        const { data: rides, error } = await supabaseClient.from('rides').select('*').eq('ride_status', 'requesting');
-        if (error) { console.error("Ошибка загрузки заказов:", error); return; }
         const list = document.getElementById('orders-list');
+        const skeleton = document.getElementById('orders-list-skeleton');
         const placeholder = document.getElementById('no-orders-placeholder');
+        
         list.innerHTML = '';
-        placeholder.classList.toggle('hidden', rides.length > 0);
+        placeholder.classList.add('hidden');
+        if(driverHasVehicle) skeleton.classList.remove('hidden');
+
+        const { data: vehicle } = await supabaseClient.from('vehicles').select('class').eq('driver_id', currentUser.id).single();
+        if (!vehicle) { skeleton.classList.add('hidden'); return; }
+
+        const { data: rides, error } = await supabaseClient.from('rides').select('*').eq('ride_status', 'requesting').eq('class', vehicle.class);
+        skeleton.classList.add('hidden');
+        if (error || rides.length === 0) { placeholder.classList.remove('hidden'); return; }
+        
         for (const ride of rides) {
-            let distanceToClient = '';
-            if (driverCurrentLocation) {
-                const directions = await getDirections(driverCurrentLocation, [ride.pickup_longitude, ride.pickup_latitude]);
-                if (directions && directions.routes && directions.routes.length > 0) {
-                    distanceToClient = `<p class="text-sm font-semibold text-blue-600 mt-1">До клиента: ${(directions.routes[0].distance / 1000).toFixed(1)} км</p>`;
-                }
-            }
-            list.insertAdjacentHTML('beforeend', `<div class="bg-gray-50 border p-4 rounded-lg"><div class="flex justify-between items-start"><div class="pr-2"><p class="font-semibold">${ride.pickup_location}</p><p class="text-sm text-gray-500">${ride.destination_location}</p>${distanceToClient}</div><div class="text-lg font-bold text-blue-600 pl-2 whitespace-nowrap">${ride.fare_amount} ₽</div></div><button data-ride-id="${ride.id}" class="accept-ride-btn mt-3 w-full bg-green-500 text-white font-bold py-2 rounded-lg">Принять</button></div>`);
+            const directions = await getDirections(driverCurrentLocation, [ride.pickup_longitude, ride.pickup_latitude]);
+            const distance = directions?.routes?.[0] ? `~${(directions.routes[0].distance / 1000).toFixed(1)} км до клиента` : '';
+            list.insertAdjacentHTML('beforeend', `<div class="bg-white border p-4 rounded-lg shadow-sm"><div class="flex justify-between items-start"><div class="pr-2"><p class="font-semibold">${ride.pickup_location}</p><p class="text-sm text-gray-500">${ride.destination_location}</p><p class="text-sm font-semibold text-blue-600 mt-1">${distance}</p></div><div class="text-lg font-bold text-blue-600 pl-2 whitespace-nowrap">${ride.fare_amount} ₽</div></div><button data-ride-id="${ride.id}" class="accept-ride-btn mt-3 w-full bg-green-500 text-white font-bold py-2 rounded-lg">Принять</button></div>`);
         }
         document.querySelectorAll('.accept-ride-btn').forEach(b => b.onclick = acceptRide);
     }
     
     async function acceptRide(event) {
-        event.target.disabled = true; event.target.textContent = 'Принимаю...';
-        const rideId = event.target.dataset.rideId;
-        const { error } = await supabaseClient.from('rides').update({ driver_id: currentUser.id, ride_status: 'accepted' }).eq('id', rideId).eq('ride_status', 'requesting');
-        if (error) { tg.showAlert('Не удалось принять заказ. Возможно, его уже забрали.'); event.target.disabled = false; event.target.textContent = 'Принять'; }
+        const btn = event.target;
+        btn.disabled = true; btn.textContent = 'Принимаю...';
+        const { error } = await supabaseClient.from('rides').update({ driver_id: currentUser.id, ride_status: 'accepted' }).eq('id', btn.dataset.rideId).eq('ride_status', 'requesting');
+        if (error) { showToast('Заказ уже недоступен.'); btn.disabled = false; btn.textContent = 'Принять'; }
     }
     
     async function checkActiveRide() {
         const { data: ride } = await supabaseClient.from('rides').select('*').eq('driver_id', currentUser.id).in('ride_status', ['accepted', 'enroute', 'in_progress']).maybeSingle();
-        const isActive = !!ride;
-        
-        document.getElementById('orders-panel').classList.toggle('hidden', isActive);
-        document.getElementById('active-ride-panel').classList.toggle('hidden', !isActive);
+        document.getElementById('orders-panel').classList.toggle('hidden', !!ride);
+        document.getElementById('active-ride-panel').classList.toggle('hidden', !ride);
 
-        if (isActive) {
+        if (ride) {
             document.getElementById('active-ride-from').textContent = ride.pickup_location;
             document.getElementById('active-ride-to').textContent = ride.destination_location;
             document.getElementById('active-ride-fare').textContent = ride.fare_amount;
             renderDriverActionButtons(ride);
-            const passengerCoords = [ride.pickup_longitude, ride.pickup_latitude];
-            const destinationCoords = [ride.destination_longitude, ride.destination_latitude];
-            if ((ride.ride_status === 'accepted' || ride.ride_status === 'enroute') && driverCurrentLocation) {
-                drawTripRoute(driverCurrentLocation, passengerCoords, 'driver-route');
-            } else if (ride.ride_status === 'in_progress') {
-                drawTripRoute(driverCurrentLocation || passengerCoords, destinationCoords, 'driver-route');
-            }
+            const destination = (ride.ride_status === 'in_progress') ? [ride.destination_longitude, ride.destination_latitude] : [ride.pickup_longitude, ride.pickup_latitude];
+            if(driverCurrentLocation) drawTripRoute(driverCurrentLocation, destination, 'driver-route');
         }
     }
     
     function renderDriverActionButtons(ride) {
         const container = document.getElementById('driver-action-buttons');
-        container.innerHTML = '';
-        const updateStatus = async (newStatus) => {
-            await supabaseClient.from('rides').update({ ride_status: newStatus }).eq('id', ride.id);
-            if(newStatus === 'completed' || newStatus === 'cancelled') {
-                checkActiveRide(); 
-            }
+        const updateStatus = (s) => supabaseClient.from('rides').update({ ride_status: s }).eq('id', ride.id).then(() => { if (['completed', 'cancelled'].includes(s)) checkActiveRide(); });
+        const actions = { 
+            accepted: { text: 'Я на месте', action: () => updateStatus('enroute'), class: 'bg-blue-500' }, 
+            enroute: { text: 'Начать поездку', action: () => updateStatus('in_progress'), class: 'bg-blue-500' }, 
+            in_progress: { text: 'Завершить', action: () => updateStatus('completed'), class: 'bg-green-500' } 
         };
-        const actions = { 'accepted': { text: 'Я на месте', action: () => updateStatus('enroute'), class: 'bg-blue-500' }, 'enroute': { text: 'Начать поездку', action: () => updateStatus('in_progress'), class: 'bg-blue-500' }, 'in_progress': { text: 'Завершить поездку', action: () => updateStatus('completed'), class: 'bg-green-500' } };
-        if (actions[ride.ride_status]) {
-            const { text, action, 'class': btnClass } = actions[ride.ride_status];
-            container.innerHTML = `<button class="w-full text-white font-bold py-2 rounded-lg ${btnClass}">${text}</button>`;
-            container.firstChild.onclick = action;
-        }
-        container.innerHTML += `<button class="w-full bg-red-500 text-white font-bold py-2 rounded-lg mt-2">Отменить</button>`;
-        container.lastChild.onclick = () => updateStatus('cancelled');
+        container.innerHTML = (actions[ride.ride_status] ? `<button id="main-action-btn" class="w-full text-white font-bold py-2 rounded-lg ${actions[ride.ride_status].class}">${actions[ride.ride_status].text}</button>` : '') + `<button id="cancel-action-btn" class="w-full bg-red-500 text-white font-bold py-2 rounded-lg mt-2">Отменить</button>`;
+        if(actions[ride.ride_status]) document.getElementById('main-action-btn').onclick = actions[ride.ride_status].action;
+        document.getElementById('cancel-action-btn').onclick = () => updateStatus('cancelled');
     }
 
     async function updatePassengerRideStatus(ride) {
-        if (currentUser.role !== 'passenger') return;
-        const statusMap = { 'accepted': 'Водитель принял заказ', 'enroute': 'Водитель скоро будет на месте', 'in_progress': 'В пути к месту назначения' };
+        const statusMap = { 
+            accepted: 'Водитель принял заказ', 
+            enroute: 'Водитель ожидает вас', 
+            in_progress: 'В пути к месту назначения' 
+        };
         if (statusMap[ride.ride_status]) {
             switchPassengerState('driver-found-state');
             document.getElementById('ride-status-passenger').textContent = statusMap[ride.ride_status];
-            const { data: driver } = await supabaseClient.from('user_profiles').select('full_name').eq('id', ride.driver_id).single();
-            const { data: vehicle } = await supabaseClient.from('vehicles').select('*').eq('driver_id', ride.driver_id).single();
+            const [{ data: driver }, { data: vehicle }] = await Promise.all([
+                supabaseClient.from('user_profiles').select('full_name').eq('id', ride.driver_id).single(),
+                supabaseClient.from('vehicles').select('*').eq('driver_id', ride.driver_id).single()
+            ]);
             document.getElementById('driver-name').textContent = driver?.full_name || 'Водитель';
             document.getElementById('driver-car').textContent = vehicle ? `${vehicle.color} ${vehicle.brand} ${vehicle.model}` : 'Машина';
             document.getElementById('driver-car-plate').textContent = vehicle?.plate_number || '...';
-            listenForDriverLocation(ride.driver_id, [ride.pickup_longitude, ride.pickup_latitude]);
+            listenForDriverLocation(ride.driver_id, [ride.pickup_longitude, ride.pickup_latitude], [ride.destination_longitude, ride.destination_latitude], ride.ride_status);
         }
-        if (ride.ride_status === 'completed' || ride.ride_status === 'cancelled') {
-            tg.showPopup({ title: ride.ride_status === 'completed' ? 'Поездка завершена!' : 'Заказ отменен', message: ride.ride_status === 'completed' ? 'Спасибо!' : 'Надеемся увидеть вас снова.', buttons: [{ type: 'ok' }] });
+        if (['completed', 'cancelled'].includes(ride.ride_status)) {
+            const completed = ride.ride_status === 'completed';
+            showToast(completed ? 'Поездка завершена!' : 'Заказ отменен');
             cleanupAfterRide();
             switchPassengerState('order-form-state');
         }
     }
 
+    // --- Геолокация и Карта ---
     function startSendingLocation() {
         if (driverLocationWatcherId) return;
         locationChannel = supabaseClient.channel(`driver-${currentUser.id}`);
         locationChannel.subscribe();
         driverLocationWatcherId = navigator.geolocation.watchPosition(
-            (pos) => {
+            pos => {
                 driverCurrentLocation = [pos.coords.longitude, pos.coords.latitude];
                 locationChannel.send({ type: 'broadcast', event: 'location_update', payload: { lon: pos.coords.longitude, lat: pos.coords.latitude } });
-            }, 
-            console.error, { enableHighAccuracy: true }
+            }, console.error, { enableHighAccuracy: true }
         );
     }
 
     function stopSendingLocation() {
-        if (driverLocationWatcherId) { navigator.geolocation.clearWatch(driverLocationWatcherId); driverLocationWatcherId = null; }
-        if (locationChannel) { locationChannel.unsubscribe(); locationChannel = null; }
-        driverCurrentLocation = null;
+        if (driverLocationWatcherId) navigator.geolocation.clearWatch(driverLocationWatcherId);
+        locationChannel?.unsubscribe();
+        driverLocationWatcherId = locationChannel = driverCurrentLocation = null;
     }
 
-    function listenForDriverLocation(driverId, destination) {
-        if (locationChannel) locationChannel.unsubscribe();
+    function listenForDriverLocation(driverId, pickup, destination, status) {
+        locationChannel?.unsubscribe();
         locationChannel = supabaseClient.channel(`driver-${driverId}`)
-            .on('broadcast', { event: 'location_update' }, ({ payload }) => {
+            .on('broadcast', { event: 'location_update' }, async ({ payload }) => {
                 const driverCoords = [payload.lon, payload.lat];
                 if (!driverMarker) driverMarker = createMarker('', driverCoords, true).addTo(map);
                 else driverMarker.setLngLat(driverCoords);
-                drawTripRoute(driverCoords, destination, 'driver-route');
+                
+                const target = status === 'in_progress' ? destination : pickup;
+                const directions = await getDirections(driverCoords, target);
+                if (directions?.routes?.length) {
+                    const etaMinutes = Math.round(directions.routes[0].duration / 60);
+                    const etaText = etaMinutes > 0 ? `Примерное время прибытия: ~${etaMinutes} мин` : 'Водитель прибыл';
+                    document.getElementById('ride-status-eta').textContent = etaText;
+                }
+                drawTripRoute(driverCoords, target, 'driver-route');
             }).subscribe();
     }
 
     function updateMapMarkers() {
-        if (fromMarker) fromMarker.remove();
-        if (toMarker) toMarker.remove();
+        fromMarker?.remove(); toMarker?.remove();
         if (fromCoords) fromMarker = createMarker('A', fromCoords).addTo(map);
         if (toCoords) toMarker = createMarker('Б', toCoords).addTo(map);
         if (fromCoords && toCoords) {
-            const bounds = new mapboxgl.LngLatBounds();
-            bounds.extend(fromCoords);
-            bounds.extend(toCoords);
+            const bounds = new mapboxgl.LngLatBounds(fromCoords, toCoords);
             map.fitBounds(bounds, { padding: 80 });
             drawTripRoute(fromCoords, toCoords, 'trip-preview');
         }
@@ -525,63 +523,54 @@ document.addEventListener('DOMContentLoaded', () => {
     
     async function drawTripRoute(start, end, routeId) {
         const data = await getDirections(start, end);
-        if (!data || !data.routes || !data.routes.length) return;
-        const route = data.routes[0].geometry;
-        if (map.getSource(routeId)) { map.getSource(routeId).setData(route); } 
-        else { map.addLayer({ id: routeId, type: 'line', source: { type: 'geojson', data: route }, paint: { 'line-color': '#3b82f6', 'line-width': 6, 'line-opacity': 0.8 } }); }
+        const route = data?.routes?.[0]?.geometry;
+        if(!route) return;
+        if (map.getSource(routeId)) map.getSource(routeId).setData(route); 
+        else map.addLayer({ id: routeId, type: 'line', source: { type: 'geojson', data: route }, paint: { 'line-color': '#3b82f6', 'line-width': 6, 'line-opacity': 0.8 } });
     }
     
-    // НОВОЕ: Функция для форматирования адреса
+    // --- Вспомогательные функции ---
     function formatAddress(placeName) {
         if (!placeName) return '';
-        const parts = placeName.split(', ');
-        // Список частей адреса, которые нужно удалить (можно расширить)
-        const partsToRemove = ['Россия', 'Республика Марий Эл'];
-        
-        const filteredParts = parts.filter(part => !partsToRemove.some(toRemove => part.includes(toRemove)));
-
-        // Если после фильтрации что-то осталось, и первая часть - это почтовый индекс, удаляем его тоже
-        if (filteredParts.length > 1 && /^\d{6}$/.test(filteredParts[0])) {
-            filteredParts.shift();
-        }
-
-        return filteredParts.join(', ');
+        const partsToRemove = ['Россия', 'Республика Марий Эл', /^\d{6}$/];
+        return placeName.split(', ').filter(part => !partsToRemove.some(r => part.match(r))).join(', ');
     }
     
     async function geocodeReverse(coords) {
-        try {
-            const r = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${coords[0]},${coords[1]}.json?access_token=${MAPBOX_TOKEN}&language=ru`);
-            const d = await r.json();
-            return (d && d.features && d.features.length > 0) ? d.features[0].place_name : "Неизвестный адрес";
-        } catch (e) { console.error("Ошибка обратного геокодирования:", e); return "Ошибка определения адреса"; }
+        const r = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${coords[0]},${coords[1]}.json?access_token=${MAPBOX_TOKEN}&language=ru`);
+        const d = await r.json();
+        return d?.features?.[0]?.place_name;
     }
     
     async function getDirections(start, end) {
         try {
-            const url = `https://api.mapbox.com/directions/v5/mapbox/driving/${start[0]},${start[1]};${end[0]},${end[1]}?geometries=geojson&access_token=${MAPBOX_TOKEN}`;
-            const response = await fetch(url);
-            return response.ok ? await response.json() : null;
-        } catch (e) { console.error("Ошибка API маршрутов:", e); return null; }
+            const r = await fetch(`https://api.mapbox.com/directions/v5/mapbox/driving/${start.join(',')};${end.join(',')}?geometries=geojson&access_token=${MAPBOX_TOKEN}`);
+            return await r.json();
+        } catch { return null; }
     }
     
     function showLoader(text) { document.getElementById('loader-text').textContent = text; document.getElementById('global-loader').classList.remove('hidden'); }
     function hideLoader() { document.getElementById('global-loader').classList.add('hidden'); document.getElementById('app-container').classList.remove('hidden'); }
-    function showError(message, isCritical = false) { const loader = document.getElementById('global-loader'); loader.classList.remove('hidden'); document.getElementById('loader-text').innerHTML = `<span class="text-red-600 font-semibold text-center">${message}</span>`; if(isCritical) loader.querySelector('.loader').style.display = 'none'; }
-    function showScreen(screenId) { document.querySelectorAll('.screen, #passenger-ui').forEach(s => s.classList.add('hidden')); document.getElementById(screenId)?.classList.remove('hidden'); }
-    function switchPassengerState(state) { ['order-form-state', 'searching-state', 'driver-found-state'].forEach(id => document.getElementById(id).classList.add('hidden')); document.getElementById(state)?.classList.remove('hidden'); }
+    function showError(message, isCritical = false) { const loader = document.getElementById('global-loader'); loader.classList.remove('hidden'); loader.innerHTML = `<span class="text-red-600 font-semibold text-center">${message}</span>`; }
+    function switchPassengerState(state) { ['order-form-state', 'searching-state', 'driver-found-state'].forEach(id => document.getElementById(id).classList.toggle('hidden', id !== state)); }
     function cleanupAfterRide() {
-        if (rideUpdateChannel) rideUpdateChannel.unsubscribe();
-        if (locationChannel) locationChannel.unsubscribe();
-        if (driverMarker) { driverMarker.remove(); driverMarker = null; }
-        if (fromMarker) { fromMarker.remove(); fromMarker = null; }
-        if (toMarker) { toMarker.remove(); toMarker = null; }
-        ['trip-preview', 'driver-route'].forEach(id => { if (map.getLayer(id)) map.removeLayer(id); if (map.getSource(id)) map.removeSource(id); });
-        currentRideId = null;
+        rideUpdateChannel?.unsubscribe(); locationChannel?.unsubscribe();
+        driverMarker?.remove(); fromMarker?.remove(); toMarker?.remove();
+        driverMarker = fromMarker = toMarker = currentRideId = null;
+        ['trip-preview', 'driver-route'].forEach(id => { if (map.getLayer(id)) { map.removeLayer(id); map.removeSource(id); }});
     }
     function createMarker(text, coords, isDriver = false) { const el = document.createElement('div'); el.className = isDriver ? 'driver-marker' : 'custom-marker'; if (!isDriver) el.textContent = text; return new mapboxgl.Marker(el).setLngLat(coords); }
+    function showToast(message, duration = 3000) {
+      const toast = document.getElementById('toast-notification');
+      document.getElementById('toast-message').textContent = message;
+      clearTimeout(toastTimeout);
+      toast.classList.remove('opacity-0', 'translate-y-[-20px]');
+      toastTimeout = setTimeout(() => toast.classList.add('opacity-0', 'translate-y-[-20px]'), duration);
+    }
     
     main();
 });
 </script>
 </body>
 </html>
+
