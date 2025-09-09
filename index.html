@@ -28,7 +28,7 @@
         .screen { position: absolute; inset: 0; z-index: 30; background-color: #f9fafb; display: flex; flex-direction: column; transform: translateX(100%); transition: transform 0.3s ease-in-out; }
         .screen.active { transform: translateX(0); }
         .state-screen { animation: fadeIn 0.3s ease-in-out; }
-        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
     </style>
 </head>
 <body class="bg-gray-100">
@@ -43,7 +43,7 @@
 
         <!-- Интерфейс Пассажира -->
         <div id="passenger-ui" class="hidden z-10">
-            <div id="bottom-sheet" class="bottom-sheet absolute bottom-0 left-0 right-0 bg-white rounded-t-2xl shadow-2xl p-4 flex flex-col" style="transform: translateY(calc(100% - 320px));">
+            <div id="bottom-sheet" class="bottom-sheet absolute bottom-0 left-0 right-0 bg-white rounded-t-2xl shadow-2xl p-4 flex flex-col" style="transform: translateY(100%);">
                 <div id="sheet-handle" class="w-12 h-1.5 bg-gray-300 rounded-full mx-auto mb-4 cursor-grab"></div>
                 <div id="sheet-content" class="overflow-y-auto">
                     <div id="order-form-state" class="state-screen"><h2 class="text-2xl font-bold text-gray-800 text-center mb-2">Куда поедем?</h2><div id="car-class-selector" class="flex justify-around items-center bg-gray-100 rounded-lg p-1 my-4"></div><div class="space-y-3"><div id="from-geocoder"></div><div id="to-geocoder"></div></div><button id="order-button" class="w-full bg-blue-600 text-white font-bold py-3.5 rounded-lg mt-5 transition-all disabled:bg-gray-400 disabled:shadow-none shadow-lg shadow-blue-500/50">Выберите адрес</button></div>
@@ -119,6 +119,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentRideId = null, driverCurrentLocation = null, driverHasVehicle = false;
     let selectedCarClass = 'economy';
     let toastTimeout;
+    let currentSheetState = 'default';
 
     // --- Основная функция инициализации ---
     async function main() {
@@ -235,16 +236,46 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    function setupBottomSheet() {
+    function setSheetState(state, animated = true) {
         const sheet = document.getElementById('bottom-sheet');
+        if (!sheet) return;
+
+        currentSheetState = state;
+        let targetTransform = '';
+
+        if (state === 'expanded') {
+            targetTransform = 'translateY(15vh)';
+        } else { // 'default' state
+            const visibleContent = sheet.querySelector('.state-screen:not(.hidden)');
+            if (visibleContent) {
+                const contentHeight = visibleContent.offsetHeight + 120;
+                targetTransform = `translateY(calc(100% - ${contentHeight}px))`;
+            }
+        }
+        
+        if (targetTransform) {
+            sheet.style.transition = animated ? 'transform 0.4s cubic-bezier(0.25, 0.8, 0.25, 1)' : 'none';
+            sheet.style.transform = targetTransform;
+        }
+    }
+
+    function setupBottomSheet() {
         const content = document.getElementById('sheet-content');
-        const expand = () => sheet.style.transform = 'translateY(15vh)';
+
+        setTimeout(() => setSheetState('default', true), 100);
+
         const collapse = () => {
             if (document.activeElement?.classList.contains('mapboxgl-ctrl-geocoder--input')) return;
-            sheet.style.transform = `translateY(calc(100% - ${sheet.querySelector('.state-screen:not(.hidden)').offsetHeight + 100}px))`;
+            setSheetState('default');
         };
-        content.addEventListener('focusin', e => e.target.classList.contains('mapboxgl-ctrl-geocoder--input') && expand());
-        content.addEventListener('focusout', () => setTimeout(collapse, 200));
+
+        content.addEventListener('focusin', (e) => {
+            if (e.target.classList.contains('mapboxgl-ctrl-geocoder--input')) {
+                setSheetState('expanded');
+            }
+        });
+        
+        content.addEventListener('focusout', () => setTimeout(collapse, 250));
     }
     
     // --- Интерфейс и логика Водителя ---
@@ -552,7 +583,21 @@ document.addEventListener('DOMContentLoaded', () => {
     function showLoader(text) { document.getElementById('loader-text').textContent = text; document.getElementById('global-loader').classList.remove('hidden'); }
     function hideLoader() { document.getElementById('global-loader').classList.add('hidden'); document.getElementById('app-container').classList.remove('hidden'); }
     function showError(message, isCritical = false) { const loader = document.getElementById('global-loader'); loader.classList.remove('hidden'); loader.innerHTML = `<span class="text-red-600 font-semibold text-center">${message}</span>`; }
-    function switchPassengerState(state) { ['order-form-state', 'searching-state', 'driver-found-state'].forEach(id => document.getElementById(id).classList.toggle('hidden', id !== state)); }
+    
+    function switchPassengerState(state) {
+        ['order-form-state', 'searching-state', 'driver-found-state'].forEach(id => {
+            document.getElementById(id).classList.toggle('hidden', id !== state);
+        });
+
+        // После переключения контента, обновим высоту шторки
+        setTimeout(() => {
+            // Обновляем только если шторка не была раскрыта вручную
+            if (currentSheetState === 'default') {
+                setSheetState('default');
+            }
+        }, 350); // Задержка соответствует анимации fadeIn
+    }
+
     function cleanupAfterRide() {
         rideUpdateChannel?.unsubscribe(); locationChannel?.unsubscribe();
         driverMarker?.remove(); fromMarker?.remove(); toMarker?.remove();
