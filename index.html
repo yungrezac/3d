@@ -309,6 +309,7 @@
 
         // --- AUTH & USER LOGIC ---
         async function authenticateUser() {
+            console.log('Authenticating user...');
             showScreen('loading');
             try {
                 let telegramId = null;
@@ -321,8 +322,12 @@
                 } else {
                     // Fallback to mock user for browser testing
                     console.warn("Telegram user data not found. Using mock user for testing.");
-                    telegramId = 123456789;
+                    telegramUser = { id: 123456789, first_name: "Test", last_name: "User" };
+                    telegramId = telegramUser.id;
                 }
+                
+                console.log('Telegram user data:', telegramUser);
+                console.log('Querying profile for telegram_id:', telegramId);
 
                 const { data, error } = await supabase
                     .from('user_profiles')
@@ -330,16 +335,20 @@
                     .eq('telegram_id', telegramId)
                     .single();
 
+                console.log('Supabase query result:', { data, error });
+
                 if (error && error.code === 'PGRST116') { // User not found
+                    console.log('User not found. Redirecting to registration.');
                     showScreen('registration');
                     // Populate name from TG data if available, otherwise use a default
-                    ui.registrationForm.querySelector('#full_name').value = telegramUser ? `${telegramUser.first_name || ''} ${telegramUser.last_name || ''}`.trim() : 'Test User';
+                    ui.registrationForm.querySelector('#full_name').value = `${telegramUser.first_name || ''} ${telegramUser.last_name || ''}`.trim();
                 } else if (data) {
+                    console.log('User found:', data);
                     currentUser = data;
-                    console.log('User authenticated:', currentUser);
                     loadRoleUI(currentUser.role);
                 } else {
-                    // This will catch timeouts from our custom fetch
+                    // This will catch timeouts from our custom fetch and other errors
+                    console.log('Unhandled Supabase query error.');
                     throw error || new Error("Произошла неизвестная ошибка аутентификации.");
                 }
 
@@ -371,6 +380,7 @@
 
             if (error) {
                 console.error('Registration error:', error);
+                console.error('Registration error object:', error);
                 tg.showAlert(`Ошибка регистрации: ${error.message}`);
             } else {
                 currentUser = data;
@@ -405,18 +415,22 @@
         }
 
         function loadRoleUI(role) {
-            if (role === 'passenger') {
-                ui.passengerUI.classList.remove('hidden');
-                ui.driverUI.classList.add('hidden');
-                ui.passengerControls.classList.add('active');
-                setPassengerState('idle');
-                setupPassengerListeners();
-            } else if (role === 'driver') {
+            console.log(`Loading UI for role: ${role}`);
+            if (role === 'driver') {
                 ui.driverUI.classList.remove('hidden');
                 ui.passengerUI.classList.add('hidden');
                 ui.driverControls.classList.add('active');
                 setDriverState('offline');
                 setupDriverListeners();
+            } else { // Default to passenger
+                if (role !== 'passenger') {
+                    console.warn(`Unknown or null role "${role}", defaulting to 'passenger'.`);
+                }
+                ui.passengerUI.classList.remove('hidden');
+                ui.driverUI.classList.add('hidden');
+                ui.passengerControls.classList.add('active');
+                setPassengerState('idle');
+                setupPassengerListeners();
             }
         }
 
