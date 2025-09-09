@@ -249,7 +249,28 @@
             tg.expand();
             tg.ready();
 
-            supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+            // Add fetch with timeout to Supabase client to prevent infinite loading
+            supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+                global: {
+                    fetch: async (url, options = {}) => {
+                        const controller = new AbortController();
+                        const timeoutId = setTimeout(() => controller.abort(), 8000); // 8-second timeout
+
+                        try {
+                            const response = await fetch(url, { ...options, signal: controller.signal });
+                            return response;
+                        } catch (error) {
+                            if (error.name === 'AbortError') {
+                                // Re-throw a more specific error to be caught by the calling function
+                                throw new Error('Request timed out');
+                            }
+                            throw error;
+                        } finally {
+                            clearTimeout(timeoutId);
+                        }
+                    },
+                },
+            });
             
             initializeMap();
             await authenticateUser();
@@ -290,27 +311,35 @@
         async function authenticateUser() {
             showScreen('loading');
             try {
-                // For testing in browser, use a mock user
-                const telegramUser = tg.initDataUnsafe?.user || { id: 123456789, first_name: "Test", last_name: "User" };
+                let telegramId = null;
+                let telegramUser = null;
 
-                if (!telegramUser) {
-                    throw new Error("Не удалось получить данные пользователя Telegram.");
+                // Check for real Telegram user data first
+                if (tg && tg.initDataUnsafe && tg.initDataUnsafe.user && tg.initDataUnsafe.user.id) {
+                    telegramUser = tg.initDataUnsafe.user;
+                    telegramId = telegramUser.id;
+                } else {
+                    // Fallback to mock user for browser testing
+                    console.warn("Telegram user data not found. Using mock user for testing.");
+                    telegramId = 123456789;
                 }
 
                 const { data, error } = await supabase
                     .from('user_profiles')
                     .select('*')
-                    .eq('telegram_id', telegramUser.id)
+                    .eq('telegram_id', telegramId)
                     .single();
 
                 if (error && error.code === 'PGRST116') { // User not found
                     showScreen('registration');
-                    ui.registrationForm.querySelector('#full_name').value = `${telegramUser.first_name || ''} ${telegramUser.last_name || ''}`.trim();
+                    // Populate name from TG data if available, otherwise use a default
+                    ui.registrationForm.querySelector('#full_name').value = telegramUser ? `${telegramUser.first_name || ''} ${telegramUser.last_name || ''}`.trim() : 'Test User';
                 } else if (data) {
                     currentUser = data;
                     console.log('User authenticated:', currentUser);
                     loadRoleUI(currentUser.role);
                 } else {
+                    // This will catch timeouts from our custom fetch
                     throw error || new Error("Произошла неизвестная ошибка аутентификации.");
                 }
 
