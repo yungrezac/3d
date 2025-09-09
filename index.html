@@ -318,9 +318,8 @@
                 console.error("Auth Error:", err);
                 tg.showAlert(`Ошибка аутентификации: ${err.message}`);
             } finally {
-                if (currentUser) {
-                     ui.loadingScreen.classList.add('hidden');
-                }
+                // Always hide loading screen after auth attempt to prevent getting stuck
+                ui.loadingScreen.classList.add('hidden');
             }
         }
 
@@ -600,3 +599,4 @@
     </script>
 </body>
 </html>
+
