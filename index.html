@@ -17,7 +17,7 @@
 
     <style>
         body, html { overscroll-behavior: none; overflow: hidden; height: 100%; width: 100%; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }
-        .bottom-sheet { touch-action: none; transition: transform 0.3s ease-in-out; }
+        .bottom-sheet { touch-action: none; transition: transform 0.4s cubic-bezier(0.25, 0.8, 0.25, 1); } /* Обновлен transition */
         .loader { border: 4px solid #f3f3f3; border-top: 4px solid #3b82f6; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
         .driver-marker { background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="%233B82F6" stroke="white" stroke-width="2"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg>'); background-size: contain; width: 40px; height: 40px; }
@@ -179,7 +179,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function getCurrentLocation() {
         return new Promise((resolve) => {
-            const fallback = () => resolve([37.6173, 55.7558]);
+            const fallback = () => resolve([46.3075, 56.3294]); // Координаты Козьмодемьянска
             const success = (pos) => resolve([pos.coords.longitude, pos.coords.latitude]);
             const error = (err) => { console.warn(`Ошибка геолокации: ${err.message}`); fallback(); };
             const watchId = setTimeout(fallback, 10000);
@@ -196,20 +196,49 @@ document.addEventListener('DOMContentLoaded', () => {
         const orderButton = document.getElementById('order-button');
         orderButton.disabled = true;
 
-        const geocoderOptions = (placeholder) => ({ accessToken: MAPBOX_TOKEN, mapboxgl: mapboxgl, marker: false, placeholder: placeholder, proximity: 'ip' });
+        // НОВОЕ: Логика для управления высотой шторки
+        const bottomSheet = document.getElementById('bottom-sheet');
+        const sheetContent = document.getElementById('sheet-content');
+
+        const expandSheet = () => {
+            bottomSheet.style.transform = 'translateY(15vh)'; // Поднимаем на 85% высоты экрана
+        };
+
+        const collapseSheet = () => {
+             // Проверяем, не активен ли сейчас ввод
+            const focusedElement = document.activeElement;
+            if (focusedElement && focusedElement.classList.contains('mapboxgl-ctrl-geocoder--input')) {
+                return; // Не закрываем, если фокус все еще в инпуте
+            }
+            bottomSheet.style.transform = 'translateY(calc(100% - 300px))';
+        };
+
+        // Добавляем слушатели на контейнер, чтобы поймать фокус на динамически созданных инпутах
+        sheetContent.addEventListener('focusin', (e) => {
+            if (e.target.classList.contains('mapboxgl-ctrl-geocoder--input')) {
+                expandSheet();
+            }
+        });
+        sheetContent.addEventListener('focusout', (e) => {
+             if (e.target.classList.contains('mapboxgl-ctrl-geocoder--input')) {
+                // Небольшая задержка, чтобы позволить кликнуть на другой элемент (например, результат поиска)
+                setTimeout(collapseSheet, 200);
+            }
+        });
+
+        const geocoderOptions = (placeholder) => ({ accessToken: MAPBOX_TOKEN, mapboxgl: mapboxgl, marker: false, placeholder: placeholder, countries: 'RU', bbox: [46.2, 56.25, 46.4, 56.4] }); // Ограничиваем поиск Козьмодемьянском
         const fromGeocoder = new MapboxGeocoder(geocoderOptions('Откуда'));
         document.getElementById('from-geocoder').appendChild(fromGeocoder.onAdd(map));
         const toGeocoder = new MapboxGeocoder(geocoderOptions('Куда'));
         document.getElementById('to-geocoder').appendChild(toGeocoder.onAdd(map));
-
-        // Устанавливаем начальный адрес на основе геолокации, которая уже есть
+        
         fromCoords = map.getCenter().toArray();
         fromAddress = await geocodeReverse(fromCoords);
-        fromGeocoder.setInput(fromAddress || '');
+        fromGeocoder.setInput(formatAddress(fromAddress) || '');
         updateMapMarkers();
 
-        fromGeocoder.on('result', (e) => { fromCoords = e.result.geometry.coordinates; fromAddress = e.result.place_name; updateMapMarkers(); calculateAndDisplayFare(); });
-        toGeocoder.on('result', (e) => { toCoords = e.result.geometry.coordinates; toAddress = e.result.place_name; updateMapMarkers(); calculateAndDisplayFare(); });
+        fromGeocoder.on('result', (e) => { fromCoords = e.result.geometry.coordinates; fromAddress = e.result.place_name; fromGeocoder.setInput(formatAddress(fromAddress)); updateMapMarkers(); calculateAndDisplayFare(); });
+        toGeocoder.on('result', (e) => { toCoords = e.result.geometry.coordinates; toAddress = e.result.place_name; toGeocoder.setInput(formatAddress(toAddress)); updateMapMarkers(); calculateAndDisplayFare(); });
         
         orderButton.onclick = createRide;
         document.getElementById('cancel-search-button').onclick = cancelRide;
@@ -220,7 +249,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('driver-ui').classList.remove('hidden');
         await checkDriverVehicle();
 
-        document.getElementById('profile-button').onclick = () => document.getElementById('driver-profile-screen').classList.add('active');
+        document.getElementById('profile-button').onclick = showProfileScreen;
         document.getElementById('back-to-orders-button').onclick = () => document.getElementById('driver-profile-screen').classList.remove('active');
         document.getElementById('save-vehicle-button').onclick = saveVehicleData;
         
@@ -319,7 +348,7 @@ document.addEventListener('DOMContentLoaded', () => {
         switchPassengerState('searching-state');
         try {
             const { data: ride, error } = await supabaseClient.from('rides').insert({ 
-                passenger_id: currentUser.id, pickup_location: fromAddress, destination_location: toAddress, 
+                passenger_id: currentUser.id, pickup_location: formatAddress(fromAddress), destination_location: formatAddress(toAddress), 
                 pickup_latitude: fromCoords[1], pickup_longitude: fromCoords[0], 
                 destination_latitude: toCoords[1], destination_longitude: toCoords[0], 
                 fare_amount: document.getElementById('order-button').dataset.fare 
@@ -338,6 +367,14 @@ document.addEventListener('DOMContentLoaded', () => {
         await supabaseClient.from('rides').update({ ride_status: 'cancelled' }).eq('id', currentRideId);
         cleanupAfterRide();
         switchPassengerState('order-form-state');
+    }
+    
+    function subscribeToRideUpdates(rideId) {
+        if (rideUpdateChannel) rideUpdateChannel.unsubscribe();
+        rideUpdateChannel = supabaseClient.channel(`public:rides:id=eq.${rideId}`)
+            .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'rides', filter: `id=eq.${rideId}` }, (payload) => {
+                updatePassengerRideStatus(payload.new);
+            }).subscribe();
     }
     
     function subscribeToNewRides() {
@@ -494,9 +531,26 @@ document.addEventListener('DOMContentLoaded', () => {
         else { map.addLayer({ id: routeId, type: 'line', source: { type: 'geojson', data: route }, paint: { 'line-color': '#3b82f6', 'line-width': 6, 'line-opacity': 0.8 } }); }
     }
     
+    // НОВОЕ: Функция для форматирования адреса
+    function formatAddress(placeName) {
+        if (!placeName) return '';
+        const parts = placeName.split(', ');
+        // Список частей адреса, которые нужно удалить (можно расширить)
+        const partsToRemove = ['Россия', 'Республика Марий Эл'];
+        
+        const filteredParts = parts.filter(part => !partsToRemove.some(toRemove => part.includes(toRemove)));
+
+        // Если после фильтрации что-то осталось, и первая часть - это почтовый индекс, удаляем его тоже
+        if (filteredParts.length > 1 && /^\d{6}$/.test(filteredParts[0])) {
+            filteredParts.shift();
+        }
+
+        return filteredParts.join(', ');
+    }
+    
     async function geocodeReverse(coords) {
         try {
-            const r = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${coords[0]},${coords[1]}.json?access_token=${MAPBOX_TOKEN}`);
+            const r = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${coords[0]},${coords[1]}.json?access_token=${MAPBOX_TOKEN}&language=ru`);
             const d = await r.json();
             return (d && d.features && d.features.length > 0) ? d.features[0].place_name : "Неизвестный адрес";
         } catch (e) { console.error("Ошибка обратного геокодирования:", e); return "Ошибка определения адреса"; }
@@ -531,4 +585,3 @@ document.addEventListener('DOMContentLoaded', () => {
 </script>
 </body>
 </html>
-
