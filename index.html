@@ -53,11 +53,10 @@
             <p class="text-lg">Загрузка приложения...</p>
         </div>
         
-        <!-- Registration Screen -->
+        <!-- Registration Screen (Can be repurposed for profile editing) -->
         <div id="registration-screen" class="hidden absolute inset-0 z-40 flex items-end justify-center">
             <div class="bg-gray-800 w-full rounded-t-2xl p-6 shadow-lg">
-                <h2 class="text-2xl font-bold mb-4">Добро пожаловать!</h2>
-                <p class="text-gray-400 mb-6">Пожалуйста, представьтесь, чтобы начать пользоваться сервисом.</p>
+                <h2 class="text-2xl font-bold mb-4">Ваш профиль</h2>
                 <form id="registration-form">
                     <div class="mb-4">
                         <label for="full_name" class="block text-sm font-medium text-gray-300 mb-1">Ваше имя</label>
@@ -68,7 +67,7 @@
                         <input type="tel" id="phone" class="w-full bg-gray-700 border border-gray-600 rounded-lg p-3 text-white focus:ring-2 focus:ring-blue-500 focus:outline-none" required placeholder="+7 (999) 123-45-67">
                     </div>
                     <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg transition-colors">
-                        Зарегистрироваться
+                        Сохранить
                     </button>
                 </form>
             </div>
@@ -218,7 +217,6 @@
         const ui = {
             loadingScreen: document.getElementById('loading-screen'),
             registrationScreen: document.getElementById('registration-screen'),
-            registrationForm: document.getElementById('registration-form'),
             passengerUI: document.getElementById('passenger-ui'),
             passengerControls: document.getElementById('passenger-controls'),
             passengerIdle: document.getElementById('passenger-idle-state'),
@@ -249,28 +247,7 @@
             tg.expand();
             tg.ready();
 
-            // Add fetch with timeout to Supabase client to prevent infinite loading
-            supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-                global: {
-                    fetch: async (url, options = {}) => {
-                        const controller = new AbortController();
-                        const timeoutId = setTimeout(() => controller.abort(), 8000); // 8-second timeout
-
-                        try {
-                            const response = await fetch(url, { ...options, signal: controller.signal });
-                            return response;
-                        } catch (error) {
-                            if (error.name === 'AbortError') {
-                                // Re-throw a more specific error to be caught by the calling function
-                                throw new Error('Request timed out');
-                            }
-                            throw error;
-                        } finally {
-                            clearTimeout(timeoutId);
-                        }
-                    },
-                },
-            });
+            supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
             
             initializeMap();
             await authenticateUser();
@@ -299,7 +276,6 @@
 
             }, (err) => {
                 console.warn(`ERROR(${err.code}): ${err.message}`);
-                // Handle error - maybe show a message to the user
             }, {
                 enableHighAccuracy: true,
                 timeout: 5000,
@@ -310,94 +286,66 @@
         // --- AUTH & USER LOGIC ---
         async function authenticateUser() {
             console.log('Authenticating user...');
-            showScreen('loading');
+            ui.loadingScreen.classList.remove('hidden');
+            
             try {
-                let telegramId = null;
-                let telegramUser = null;
+                const telegramUser = tg.initDataUnsafe?.user || { id: 123456789, first_name: "Test", last_name: "User" };
+                const telegramId = telegramUser.id;
 
-                // Check for real Telegram user data first
-                if (tg && tg.initDataUnsafe && tg.initDataUnsafe.user && tg.initDataUnsafe.user.id) {
-                    telegramUser = tg.initDataUnsafe.user;
-                    telegramId = telegramUser.id;
-                } else {
-                    // Fallback to mock user for browser testing
-                    console.warn("Telegram user data not found. Using mock user for testing.");
-                    telegramUser = { id: 123456789, first_name: "Test", last_name: "User" };
-                    telegramId = telegramUser.id;
+                if (!telegramId) {
+                    throw new Error("Telegram User ID not found.");
                 }
-                
-                console.log('Telegram user data:', telegramUser);
+
                 console.log('Querying profile for telegram_id:', telegramId);
 
-                const { data, error } = await supabase
+                let { data: user, error: fetchError } = await supabase
                     .from('user_profiles')
                     .select('*')
                     .eq('telegram_id', telegramId)
                     .single();
 
-                console.log('Supabase query result:', { data, error });
+                if (fetchError && fetchError.code === 'PGRST116') { // User not found, so create them
+                    console.log('User not found. Creating a new profile automatically.');
+                    
+                    const newProfile = {
+                        telegram_id: telegramId,
+                        full_name: `${telegramUser.first_name || ''} ${telegramUser.last_name || ''}`.trim() || 'Новый пользователь',
+                        avatar_url: telegramUser.photo_url || null,
+                        role: 'passenger' // Default role
+                    };
 
-                if (error && error.code === 'PGRST116') { // User not found
-                    console.log('User not found. Redirecting to registration.');
-                    showScreen('registration');
-                    // Populate name from TG data if available, otherwise use a default
-                    ui.registrationForm.querySelector('#full_name').value = `${telegramUser.first_name || ''} ${telegramUser.last_name || ''}`.trim();
-                } else if (data) {
-                    console.log('User found:', data);
-                    currentUser = data;
-                    loadRoleUI(currentUser.role);
-                } else {
-                    // This will catch timeouts from our custom fetch and other errors
-                    console.log('Unhandled Supabase query error.');
-                    throw error || new Error("Произошла неизвестная ошибка аутентификации.");
+                    const { data: newUser, error: insertError } = await supabase
+                        .from('user_profiles')
+                        .insert(newProfile)
+                        .select()
+                        .single();
+
+                    if (insertError) {
+                        console.error('Auto-registration error:', insertError);
+                        throw new Error(`Не удалось автоматически создать профиль: ${insertError.message}`);
+                    }
+                    
+                    console.log('New user created:', newUser);
+                    user = newUser;
+
+                } else if (fetchError) { // Any other error during fetch
+                    throw fetchError;
                 }
 
+                console.log('User authenticated:', user);
+                currentUser = user;
+                loadRoleUI(currentUser.role);
+
             } catch (err) {
-                console.error("Auth Error:", err);
-                tg.showAlert(`Ошибка аутентификации: ${err.message}`);
+                console.error("Authentication failed:", err);
+                tg.showAlert(`Критическая ошибка: ${err.message}`);
+                // The loading screen will remain, as the app cannot function.
             } finally {
-                // Always hide loading screen after auth attempt to prevent getting stuck
                 ui.loadingScreen.classList.add('hidden');
             }
         }
 
-        ui.registrationForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const fullName = ui.registrationForm.querySelector('#full_name').value;
-            const phone = ui.registrationForm.querySelector('#phone').value;
-            const telegramUser = tg.initDataUnsafe?.user || { id: 123456789 };
-
-            const { data, error } = await supabase
-                .from('user_profiles')
-                .insert({
-                    id: crypto.randomUUID(), // Assuming `id` is not auto-generated by auth trigger
-                    full_name: fullName,
-                    phone: phone,
-                    telegram_id: telegramUser.id
-                })
-                .select()
-                .single();
-
-            if (error) {
-                console.error('Registration error:', error);
-                console.error('Registration error object:', error);
-                tg.showAlert(`Ошибка регистрации: ${error.message}`);
-            } else {
-                currentUser = data;
-                console.log('User registered:', currentUser);
-                await authenticateUser(); // Re-auth to load the correct UI
-            }
-        });
-
         // --- UI & ROLE MANAGEMENT ---
-        function showScreen(screen) {
-            ['loading', 'registration'].forEach(s => {
-                const el = document.getElementById(`${s}-screen`);
-                if (s === screen) el.classList.remove('hidden');
-                else el.classList.add('hidden');
-            });
-        }
-        
         function setPassengerState(state) {
             ['idle', 'requesting', 'ontrip'].forEach(s => {
                 const el = document.getElementById(`passenger-${s}-state`);
@@ -450,15 +398,16 @@
             setPassengerState('requesting');
             const userCoords = userMarker.getLngLat();
 
+            // Convert coordinates to PostGIS geography format
+            const pickupPoint = `POINT(${userCoords.lng} ${userCoords.lat})`;
+
             const { data, error } = await supabase
                 .from('rides')
                 .insert({
                     passenger_id: currentUser.id,
                     pickup_location: 'Текущее местоположение',
-                    pickup_latitude: userCoords.lat,
-                    pickup_longitude: userCoords.lng,
                     destination_location: destination,
-                    // destination coordinates would be resolved by a geocoder in a real app
+                    pickup_point: pickupPoint,
                 })
                 .select()
                 .single();
@@ -500,11 +449,11 @@
                     console.log('Ride update received:', payload);
                     currentRide = payload.new;
                     
-                    if (currentRide.ride_status === 'accepted') {
+                    if (currentRide.ride_status === 'accepted' && currentRide.driver_id) {
                         setPassengerState('ontrip');
                         tg.HapticFeedback.notificationOccurred('success');
                         
-                        // Fetch driver info
+                        // Fetch driver and vehicle info
                         const {data: driverData} = await supabase
                             .from('user_profiles')
                             .select('full_name, avatar_url, rating')
@@ -528,6 +477,7 @@
                         }
                     } else if (currentRide.ride_status === 'completed' || currentRide.ride_status === 'cancelled') {
                         if (rideSubscription) rideSubscription.unsubscribe();
+                        currentRide = null;
                         setPassengerState('idle');
                         // Here you would show a rating screen
                     }
@@ -551,18 +501,24 @@
                 tg.HapticFeedback.impactOccurred('light');
             } else {
                 setDriverState('offline');
-                if (rideRequestSubscription) rideRequestSubscription.unsubscribe();
+                if (rideRequestSubscription) {
+                    rideRequestSubscription.unsubscribe();
+                    rideRequestSubscription = null;
+                }
                 tg.HapticFeedback.impactOccurred('light');
             }
         }
         
         function listenForRideRequests() {
-            if (rideRequestSubscription) rideRequestSubscription.unsubscribe();
+            if (rideRequestSubscription) return;
 
             rideRequestSubscription = supabase
-                .channel('public:rides')
+                .channel('public:rides:requesting')
                 .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'rides', filter: 'ride_status=eq.requesting' }, (payload) => {
                     console.log('New ride request:', payload.new);
+                    // Avoid taking a ride if already on one.
+                    if(currentRide) return; 
+
                     currentRide = payload.new;
                     document.getElementById('request-pickup').innerText = currentRide.pickup_location;
                     document.getElementById('request-destination').innerText = currentRide.destination_location;
@@ -574,11 +530,24 @@
         
         async function acceptRide() {
             if (!currentRide) return;
+            
+            // Fetch vehicle id
+            const {data: vehicle, error: vehicleError} = await supabase
+                .from('vehicles')
+                .select('id')
+                .eq('driver_id', currentUser.id)
+                .single();
+            
+            if(vehicleError || !vehicle) {
+                tg.showAlert('Не удалось найти ваш автомобиль. Проверьте профиль.');
+                return;
+            }
 
             const { error } = await supabase
                 .from('rides')
                 .update({
                     driver_id: currentUser.id,
+                    vehicle_id: vehicle.id,
                     ride_status: 'accepted',
                     accepted_at: new Date().toISOString()
                 })
@@ -587,7 +556,10 @@
             if (error) {
                 tg.showAlert("Не удалось принять заказ.");
             } else {
-                if (rideRequestSubscription) rideRequestSubscription.unsubscribe(); // Stop listening for other requests
+                if (rideRequestSubscription) {
+                    rideRequestSubscription.unsubscribe();
+                    rideRequestSubscription = null;
+                }
                 document.getElementById('trip-address').innerText = currentRide.pickup_location;
                 setDriverState('ontrip');
             }
@@ -599,46 +571,42 @@
         }
 
         async function handleTripAction() {
-            // This function would handle "I'm here", "Start trip", "End trip" logic
             const button = ui.tripActionBtn;
-            let newStatus;
-            let newHeaderText;
-            let newButtonText;
-            
-            switch(currentRide.ride_status) {
-                case 'accepted':
-                    newStatus = 'started';
-                    newHeaderText = `Везем клиента в ${currentRide.destination_location}`;
-                    newButtonText = "Завершить поездку";
-                    break;
-                case 'started':
-                    newStatus = 'completed';
-                    break;
+            const currentStatus = currentRide.ride_status;
+            let newStatus, newHeaderText, newButtonText, updatePayload;
+
+            if (currentStatus === 'accepted') {
+                newStatus = 'started';
+                newHeaderText = `Везем клиента в ${currentRide.destination_location}`;
+                newButtonText = "Завершить поездку";
+                updatePayload = { ride_status: newStatus, started_at: new Date().toISOString() };
+            } else if (currentStatus === 'started') {
+                newStatus = 'completed';
+                updatePayload = { ride_status: newStatus, completed_at: new Date().toISOString() };
+            } else {
+                return; // No action for other statuses
             }
 
-            if(newStatus === 'completed') {
-                await supabase.from('rides').update({ 
-                    ride_status: 'completed', 
-                    completed_at: new Date().toISOString()
-                }).eq('id', currentRide.id);
-                currentRide = null;
-                toggleDriverStatus(true); // Go back online
-            } else {
-                const { data, error } = await supabase.from('rides').update({ 
-                    ride_status: newStatus,
-                    started_at: new Date().toISOString()
-                }).eq('id', currentRide.id).select().single();
+            const { data, error } = await supabase
+                .from('rides')
+                .update(updatePayload)
+                .eq('id', currentRide.id)
+                .select()
+                .single();
 
-                if(error) {
-                    tg.showAlert("Не удалось обновить статус поездки");
+            if (error) {
+                tg.showAlert("Не удалось обновить статус поездки");
+            } else {
+                currentRide = data;
+                if (newStatus === 'completed') {
+                    currentRide = null;
+                    toggleDriverStatus(true); // Go back online
                 } else {
-                    currentRide = data;
                     document.getElementById('trip-header').firstElementChild.innerText = newHeaderText;
                     button.innerText = newButtonText;
                 }
             }
         }
-
     </script>
 </body>
 </html>
