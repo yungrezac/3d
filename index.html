@@ -8,103 +8,95 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Telegram Web App SDK -->
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    
-    <!-- FIX: Replaced Mapbox GL JS with Leaflet.js to solve cross-origin errors -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-    
+    <!-- Leaflet.js -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <!-- Font Awesome for icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <style>
         body, html {
-            overflow: hidden;
-            height: 100%;
-            width: 100%;
+            overflow: hidden; height: 100%; width: 100%;
             background-color: var(--tg-theme-bg-color, #f3f4f6);
             color: var(--tg-theme-text-color, #111827);
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
         }
-        #map {
-            position: absolute;
-            top: 0;
-            bottom: 0;
-            width: 100%;
-            z-index: 0;
-        }
-        #bottom-sheet {
-            transform: translateY(100%);
-            transition: transform 0.3s ease-in-out;
-            z-index: 20;
-        }
-        #bottom-sheet.is-open {
-            transform: translateY(0);
-        }
-        .address-btn {
-            background-color: var(--tg-theme-secondary-bg-color, #ffffff);
-            border: 1px solid var(--tg-theme-hint-color, #e5e7eb);
-            transition: all 0.2s ease-in-out;
-        }
-        .address-text.placeholder {
-            color: var(--tg-theme-hint-color, #9ca3af);
-        }
-        .address-text.filled {
-            color: var(--tg-theme-text-color, #111827);
-            font-weight: 500;
-        }
-        .clear-btn {
-            display: none;
-        }
-        .filled ~ .clear-btn {
-            display: block;
-        }
-        /* New styles for geocoder input and results */
-        #geocoder-input {
-            height: 48px;
-            padding-left: 10px;
-            font-size: 1rem;
-            background-color: #f3f4f6;
-            border-radius: 0.75rem;
-            width: 100%;
-            border: 2px solid transparent;
-        }
-        #geocoder-input:focus {
-            outline: none;
-            border-color: var(--tg-theme-button-color, #2481cc);
-        }
-        #geocoder-results {
-            max-height: calc(90vh - 150px);
-            overflow-y: auto;
-        }
-        .leaflet-control-attribution, .leaflet-control-zoom {
-            z-index: 1;
-        }
+        #map { position: absolute; top: 0; bottom: 0; width: 100%; z-index: 0; }
+        #bottom-sheet { transform: translateY(100%); transition: transform 0.3s ease-in-out; z-index: 20; }
+        #bottom-sheet.is-open { transform: translateY(0); }
+        .address-btn { background-color: var(--tg-theme-secondary-bg-color, #ffffff); border: 1px solid var(--tg-theme-hint-color, #e5e7eb); transition: all 0.2s ease-in-out; }
+        .address-text.placeholder { color: var(--tg-theme-hint-color, #9ca3af); }
+        .address-text.filled { color: var(--tg-theme-text-color, #111827); font-weight: 500; }
+        .clear-btn { display: none; }
+        .filled ~ .clear-btn { display: block; }
+        #geocoder-input { height: 48px; padding-left: 10px; font-size: 1rem; background-color: #f3f4f6; border-radius: 0.75rem; width: 100%; border: 2px solid transparent; }
+        #geocoder-input:focus { outline: none; border-color: var(--tg-theme-button-color, #2481cc); }
+        #geocoder-results { max-height: calc(90vh - 150px); overflow-y: auto; }
+        .leaflet-control-attribution, .leaflet-control-zoom { z-index: 1; }
+        /* Tariff selection styles */
+        .tariff-card { transition: all 0.2s ease-in-out; border: 2px solid transparent; }
+        .tariff-card.selected { border-color: var(--tg-theme-button-color, #2481cc); background-color: var(--tg-theme-secondary-bg-color, #f9fafb); }
+        /* Hide scrollbar */
+        #tariffs-container::-webkit-scrollbar { display: none; }
+        #tariffs-container { -ms-overflow-style: none; scrollbar-width: none; }
     </style>
 </head>
 <body>
 
     <div id="map"></div>
 
-    <div id="controls" class="fixed bottom-0 left-0 w-full p-4 bg-[var(--tg-theme-secondary-bg-color,#ffffff)] rounded-t-2xl shadow-lg space-y-3 border-t border-gray-200 z-10">
-        <div class="relative flex items-center">
-            <button id="from-btn" class="address-btn w-full text-left flex items-center p-3 rounded-xl">
-                <span class="flex-shrink-0 w-6 text-center text-green-500"><i class="fas fa-map-marker-alt"></i></span>
-                <span id="from-text" class="address-text placeholder ml-3 truncate">Откуда?</span>
-            </button>
-            <button id="from-clear-btn" class="clear-btn absolute right-3 p-1 text-gray-400 hover:text-gray-600">
-                <i class="fas fa-times-circle"></i>
-            </button>
+    <!-- Main Controls Panel -->
+    <div id="main-panel" class="fixed bottom-0 left-0 w-full bg-[var(--tg-theme-secondary-bg-color,#ffffff)] rounded-t-2xl shadow-lg border-t border-gray-200 z-10">
+        <!-- Initial state: Address input -->
+        <div id="address-controls" class="p-4 space-y-3">
+             <div class="relative flex items-center">
+                <button id="from-btn" class="address-btn w-full text-left flex items-center p-3 rounded-xl">
+                    <span class="flex-shrink-0 w-6 text-center text-green-500"><i class="fas fa-map-marker-alt"></i></span>
+                    <span id="from-text" class="address-text placeholder ml-3 truncate">Откуда?</span>
+                </button>
+                <button id="from-clear-btn" class="clear-btn absolute right-3 p-1 text-gray-400 hover:text-gray-600">
+                    <i class="fas fa-times-circle"></i>
+                </button>
+            </div>
+            <div class="relative flex items-center">
+                <button id="to-btn" class="address-btn w-full text-left flex items-center p-3 rounded-xl">
+                    <span class="flex-shrink-0 w-6 text-center text-red-500"><i class="fas fa-flag-checkered"></i></span>
+                    <span id="to-text" class="address-text placeholder ml-3 truncate">Куда?</span>
+                </button>
+                <button id="to-clear-btn" class="clear-btn absolute right-3 p-1 text-gray-400 hover:text-gray-600">
+                    <i class="fas fa-times-circle"></i>
+                </button>
+            </div>
         </div>
-        <div class="relative flex items-center">
-            <button id="to-btn" class="address-btn w-full text-left flex items-center p-3 rounded-xl">
-                <span class="flex-shrink-0 w-6 text-center text-red-500"><i class="fas fa-flag-checkered"></i></span>
-                <span id="to-text" class="address-text placeholder ml-3 truncate">Куда?</span>
-            </button>
-            <button id="to-clear-btn" class="clear-btn absolute right-3 p-1 text-gray-400 hover:text-gray-600">
-                <i class="fas fa-times-circle"></i>
-            </button>
+
+        <!-- Order details state -->
+        <div id="order-details" class="hidden p-4">
+            <div class="flex justify-between items-center text-sm text-gray-600 mb-3 px-1">
+                <span id="route-distance"></span>
+                <span id="route-duration"></span>
+            </div>
+            <div id="tariffs-container" class="flex space-x-3 overflow-x-auto pb-3">
+                <!-- Tariff cards will be injected here -->
+            </div>
         </div>
     </div>
+    
+    <!-- Driver on the way panel -->
+    <div id="driver-info-screen" class="hidden fixed bottom-0 left-0 w-full p-4 bg-white rounded-t-2xl shadow-lg border-t z-10 text-center">
+        <h3 class="text-xl font-bold">Водитель в пути</h3>
+        <p class="text-gray-500">Прибытие через 5-7 минут</p>
+        <div class="bg-gray-100 p-3 rounded-lg my-4 text-left flex items-center">
+            <div class="w-12 h-12 bg-gray-300 rounded-full mr-4 flex items-center justify-center">
+                <i class="fas fa-user text-2xl text-white"></i>
+            </div>
+            <div>
+                <p class="font-bold">Алексей</p>
+                <p>Белый Kia Rio, A123BC 777</p>
+            </div>
+        </div>
+        <button id="cancel-order-btn" class="w-full bg-red-500 text-white p-3 rounded-xl font-bold">Отменить заказ</button>
+    </div>
 
+    <!-- Bottom Sheet for address search -->
     <div id="bottom-sheet" class="fixed bottom-0 left-0 w-full h-[90vh] bg-[var(--tg-theme-secondary-bg-color,#ffffff)] rounded-t-2xl shadow-2xl flex flex-col">
         <div class="p-4 flex-shrink-0">
             <div class="w-10 h-1.5 bg-gray-300 rounded-full mx-auto mb-3"></div>
@@ -118,6 +110,7 @@
     
     <div id="overlay" class="fixed inset-0 bg-black bg-opacity-40 z-10 hidden"></div>
 
+    <!-- Searching for driver animation -->
     <div id="searching-screen" class="hidden fixed inset-0 bg-white bg-opacity-90 flex-grow flex flex-col items-center justify-center text-center z-30">
         <div class="relative w-32 h-32">
             <div class="absolute inset-0 border-4 border-amber-400 rounded-full animate-ping"></div>
@@ -128,94 +121,107 @@
         <h2 class="text-2xl font-bold mt-8">Ищем водителя...</h2>
     </div>
 
-
     <script>
         document.addEventListener('DOMContentLoaded', () => {
             try {
+                // --- CONFIGURATION ---
                 const tg = window.Telegram.WebApp;
+                const MAPBOX_TOKEN = 'pk.eyJ1IjoieXVuZ3JlemFjIiwiYSI6ImNtOW1ZzJ6bDBjNHUyanI3ejc5eXo1d2MifQ._tryk9cXjfReUGLGnNkm6Q';
+                const KOZMODEMYANSK_CENTER = [56.3339, 46.5704]; // Lat, Lon
+                const KOZMODEMYANSK_BBOX = [46.45, 56.29, 46.69, 56.37]; // Lng, Lat, Lng, Lat
+                const TARIFFS = [
+                    { name: 'Эконом', multiplier: 1, icon: 'fa-car-side' },
+                    { name: 'Комфорт', multiplier: 1.4, icon: 'fa-car' },
+                    { name: 'Бизнес', multiplier: 2.2, icon: 'fa-car-on' }
+                ];
 
-                const MAPBOX_TOKEN = 'pk.eyJ1IjoieXVuZ3JlemFjIiwiYSI6ImNtOW10ZzJ6bDBjNHUyanI3ejc5eXo1d2MifQ._tryk9cXjfReUGLGnNkm6Q';
-                const KOZMODEMYANSK_CENTER = [56.3339, 46.5704]; // Lat, Lon for Leaflet
-                const KOZMODEMYANSK_BBOX = [46.45, 56.29, 46.69, 56.37]; // Lon, Lat, Lon, Lat
+                // --- DOM ELEMENTS ---
+                const dom = {
+                    map: 'map',
+                    sheet: document.getElementById('bottom-sheet'),
+                    sheetTitle: document.getElementById('sheet-title'),
+                    overlay: document.getElementById('overlay'),
+                    fromBtn: document.getElementById('from-btn'),
+                    toBtn: document.getElementById('to-btn'),
+                    fromText: document.getElementById('from-text'),
+                    toText: document.getElementById('to-text'),
+                    fromClear: document.getElementById('from-clear-btn'),
+                    toClear: document.getElementById('to-clear-btn'),
+                    searchInput: document.getElementById('geocoder-input'),
+                    searchResults: document.getElementById('geocoder-results'),
+                    addressControls: document.getElementById('address-controls'),
+                    orderDetails: document.getElementById('order-details'),
+                    routeDistance: document.getElementById('route-distance'),
+                    routeDuration: document.getElementById('route-duration'),
+                    tariffsContainer: document.getElementById('tariffs-container'),
+                    searchingScreen: document.getElementById('searching-screen'),
+                    driverInfoScreen: document.getElementById('driver-info-screen'),
+                    cancelOrderBtn: document.getElementById('cancel-order-btn')
+                };
 
-                const bottomSheet = document.getElementById('bottom-sheet');
-                const sheetTitle = document.getElementById('sheet-title');
-                const overlay = document.getElementById('overlay');
-                const fromBtn = document.getElementById('from-btn');
-                const toBtn = document.getElementById('to-btn');
-                const fromText = document.getElementById('from-text');
-                const toText = document.getElementById('to-text');
-                const fromClearBtn = document.getElementById('from-clear-btn');
-                const toClearBtn = document.getElementById('to-clear-btn');
-                const searchingScreen = document.getElementById('searching-screen');
-                const geocoderInput = document.getElementById('geocoder-input');
-                const geocoderResults = document.getElementById('geocoder-results');
-
-                let map, markerFrom, markerTo;
-                let currentSearchContext = null; 
-                let orderData = { from: null, to: null };
-                let geocodeTimer;
-
+                // --- STATE ---
+                let map, markerFrom, markerTo, routeLine;
+                let searchContext = null; 
+                let orderData = { from: null, to: null, distance: null, duration: null };
+                let selectedTariff = TARIFFS[0];
+                let searchTimer;
+                
+                // --- INITIALIZATION ---
                 tg.ready();
                 tg.expand();
                 initializeMap();
 
-                function openSheet(context) {
-                    currentSearchContext = context;
-                    sheetTitle.textContent = context === 'from' ? 'Укажите место отправления' : 'Куда поедете?';
-                    bottomSheet.classList.add('is-open');
-                    overlay.classList.remove('hidden');
-                    geocoderInput.value = '';
-                    geocoderResults.innerHTML = '';
-                    setTimeout(() => geocoderInput.focus(), 300);
-                }
-
-                function closeSheet() {
-                    bottomSheet.classList.remove('is-open');
-                    overlay.classList.add('hidden');
-                    geocoderInput.blur();
-                    currentSearchContext = null;
-                }
-                
-                function formatAddress(feature) {
-                    return feature.place_name.split(',')[0];
-                }
-
+                // --- FUNCTIONS ---
                 function initializeMap() {
-                    map = L.map('map', { zoomControl: false }).setView(KOZMODEMYANSK_CENTER, 13);
+                    map = L.map(dom.map, { zoomControl: false }).setView(KOZMODEMYANSK_CENTER, 13);
                     L.tileLayer(`https://api.mapbox.com/styles/v1/mapbox/streets-v11/tiles/{z}/{x}/{y}?access_token=${MAPBOX_TOKEN}`, {
-                        attribution: '&copy; <a href="https://www.mapbox.com/about/maps/">Mapbox</a> &copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-                        tileSize: 512,
-                        zoomOffset: -1,
+                        attribution: '&copy; Mapbox &copy; OpenStreetMap', tileSize: 512, zoomOffset: -1
                     }).addTo(map);
 
-                    const greenIcon = L.icon({ iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png', shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png', iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34], shadowSize: [41, 41] });
-                    const redIcon = L.icon({ iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png', shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png', iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34], shadowSize: [41, 41] });
+                    const createIcon = (color) => L.icon({ 
+                        iconUrl: `https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-${color}.png`, 
+                        shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png', 
+                        iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34], shadowSize: [41, 41] 
+                    });
                     
-                    markerFrom = L.marker([0,0], { icon: greenIcon });
-                    markerTo = L.marker([0,0], { icon: redIcon });
+                    markerFrom = L.marker([0,0], { icon: createIcon('green') });
+                    markerTo = L.marker([0,0], { icon: createIcon('red') });
 
                     map.on('click', handleMapClick);
                 }
+
+                function openSheet(context) {
+                    searchContext = context;
+                    dom.sheetTitle.textContent = context === 'from' ? 'Укажите место отправления' : 'Куда поедете?';
+                    dom.sheet.classList.add('is-open');
+                    dom.overlay.classList.remove('hidden');
+                    dom.searchInput.value = '';
+                    dom.searchResults.innerHTML = '';
+                    setTimeout(() => dom.searchInput.focus(), 300);
+                }
+
+                function closeSheet() {
+                    dom.sheet.classList.remove('is-open');
+                    dom.overlay.classList.add('hidden');
+                    dom.searchInput.blur();
+                    searchContext = null;
+                }
                 
+                function formatAddress(feature) { return feature.place_name.split(',')[0]; }
+
                 function updateOrderLocation(feature, context) {
                     if (!context) return;
-
                     const address = formatAddress(feature);
-                    const coords = [feature.center[1], feature.center[0]]; // Lat, Lon for Leaflet
-
-                    const textElement = context === 'from' ? fromText : toText;
+                    const coords = [feature.center[1], feature.center[0]]; // Lat, Lon
+                    const textEl = context === 'from' ? dom.fromText : dom.toText;
                     const marker = context === 'from' ? markerFrom : markerTo;
 
-                    textElement.textContent = address;
-                    textElement.classList.remove('placeholder');
-                    textElement.classList.add('filled');
+                    textEl.textContent = address;
+                    textEl.classList.remove('placeholder');
+                    textEl.classList.add('filled');
                     
-                    if (!map.hasLayer(marker)) {
-                        marker.addTo(map);
-                    }
+                    if (!map.hasLayer(marker)) marker.addTo(map);
                     marker.setLatLng(coords);
-
                     orderData[context] = { address, coords };
                     
                     closeSheet();
@@ -225,93 +231,175 @@
                 
                 function clearOrderLocation(context) {
                     if (!context) return;
-                    
-                    const textElement = context === 'from' ? fromText : toText;
+                    const textEl = context === 'from' ? dom.fromText : dom.toText;
                     const marker = context === 'from' ? markerFrom : markerTo;
 
-                    textElement.textContent = context === 'from' ? 'Откуда?' : 'Куда?';
-                    textElement.classList.add('placeholder');
-                    textElement.classList.remove('filled');
+                    textEl.textContent = context === 'from' ? 'Откуда?' : 'Куда?';
+                    textEl.classList.add('placeholder');
+                    textEl.classList.remove('filled');
                     
-                    if (map.hasLayer(marker)) {
-                        marker.removeFrom(map);
-                    }
+                    if (map.hasLayer(marker)) marker.removeFrom(map);
                     orderData[context] = null;
-                    checkOrderReady();
-                }
-
-                function handleMapClick(e) {
-                    const context = currentSearchContext || (!orderData.from ? 'from' : !orderData.to ? 'to' : null);
-                    if (!context) return;
-                    reverseGeocode([e.latlng.lng, e.latlng.lat], context);
-                }
-                
-                async function geocode(query) {
-                    if (query.length < 3) {
-                        geocoderResults.innerHTML = '';
-                        return;
-                    }
-                    const response = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?bbox=${KOZMODEMYANSK_BBOX.join(',')}&access_token=${MAPBOX_TOKEN}&language=ru-RU&country=RU`);
-                    const data = await response.json();
-                    displayGeocodeResults(data.features);
-                }
-
-                function displayGeocodeResults(features) {
-                    geocoderResults.innerHTML = '';
-                    features.forEach(feature => {
-                        const li = document.createElement('div');
-                        li.className = 'p-3 border-b border-gray-200 cursor-pointer hover:bg-gray-100';
-                        li.textContent = feature.place_name;
-                        li.onclick = () => updateOrderLocation(feature, currentSearchContext);
-                        geocoderResults.appendChild(li);
-                    });
-                }
-
-                async function reverseGeocode(coords, context) {
-                    try {
-                        const response = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${coords[0]},${coords[1]}.json?types=address,poi&access_token=${MAPBOX_TOKEN}&language=ru-RU`);
-                        const data = await response.json();
-                        if (data.features && data.features.length > 0) {
-                           updateOrderLocation(data.features[0], context);
-                        }
-                    } catch (error) {
-                        console.error("Reverse geocoding failed:", error);
-                    }
+                    resetToAddressInput();
                 }
                 
                 function checkOrderReady() {
                     if (orderData.from && orderData.to) {
-                        tg.MainButton.setText('Найти водителя');
+                        fetchRouteAndPrice();
+                    }
+                }
+
+                async function fetchRouteAndPrice() {
+                    const coords = `${orderData.from.coords[1]},${orderData.from.coords[0]};${orderData.to.coords[1]},${orderData.to.coords[0]}`;
+                    const url = `https://api.mapbox.com/directions/v5/mapbox/driving/${coords}?geometries=geojson&overview=full&access_token=${MAPBOX_TOKEN}`;
+                    try {
+                        const response = await fetch(url);
+                        const data = await response.json();
+                        if (data.routes && data.routes.length > 0) {
+                            const route = data.routes[0];
+                            orderData.distance = route.distance; // meters
+                            orderData.duration = route.duration; // seconds
+                            drawRoute(route.geometry.coordinates);
+                            displayOrderDetails();
+                        }
+                    } catch (error) { console.error("Directions API error:", error); }
+                }
+
+                function drawRoute(geometry) {
+                    if (routeLine && map.hasLayer(routeLine)) routeLine.remove();
+                    const latlngs = geometry.map(coord => [coord[1], coord[0]]); // Leaflet needs Lat, Lng
+                    routeLine = L.polyline(latlngs, { color: '#2481cc', weight: 5 }).addTo(map);
+                    map.fitBounds(routeLine.getBounds().pad(0.1));
+                }
+
+                function displayOrderDetails() {
+                    dom.addressControls.classList.add('hidden');
+                    dom.orderDetails.classList.remove('hidden');
+                    
+                    const distanceKm = (orderData.distance / 1000).toFixed(1);
+                    const durationMin = Math.round(orderData.duration / 60);
+                    dom.routeDistance.innerHTML = `<i class="fas fa-road"></i> ${distanceKm} км`;
+                    dom.routeDuration.innerHTML = `<i class="fas fa-clock"></i> ${durationMin} мин`;
+
+                    dom.tariffsContainer.innerHTML = '';
+                    TARIFFS.forEach(tariff => {
+                        const price = calculatePrice(tariff);
+                        const card = document.createElement('div');
+                        card.className = `tariff-card flex-shrink-0 w-28 p-3 rounded-lg text-center cursor-pointer ${tariff.name === selectedTariff.name ? 'selected' : ''}`;
+                        card.innerHTML = `
+                            <i class="fas ${tariff.icon} text-2xl"></i>
+                            <p class="font-bold mt-1">${tariff.name}</p>
+                            <p class="text-sm font-semibold">${price} ₽</p>
+                        `;
+                        card.onclick = () => handleTariffSelection(tariff);
+                        dom.tariffsContainer.appendChild(card);
+                    });
+                    updateMainButton();
+                }
+
+                function calculatePrice(tariff) {
+                    const basePrice = 50;
+                    const pricePerKm = 15;
+                    const pricePerMin = 4;
+                    const price = basePrice + (orderData.distance / 1000) * pricePerKm + (orderData.duration / 60) * pricePerMin;
+                    return Math.round(price * tariff.multiplier);
+                }
+
+                function handleTariffSelection(tariff) {
+                    selectedTariff = tariff;
+                    document.querySelectorAll('.tariff-card').forEach(c => c.classList.remove('selected'));
+                    const selectedCard = Array.from(dom.tariffsContainer.children).find(c => c.querySelector('p').textContent === tariff.name);
+                    if (selectedCard) selectedCard.classList.add('selected');
+                    updateMainButton();
+                }
+
+                function updateMainButton() {
+                    if (orderData.from && orderData.to) {
+                        const price = calculatePrice(selectedTariff);
+                        tg.MainButton.setText(`Заказать за ${price} ₽`);
                         tg.MainButton.show();
                     } else {
                         tg.MainButton.hide();
                     }
                 }
+                
+                function resetToAddressInput() {
+                    dom.addressControls.classList.remove('hidden');
+                    dom.orderDetails.classList.add('hidden');
+                    if (routeLine && map.hasLayer(routeLine)) routeLine.remove();
+                    updateMainButton();
+                }
+                
+                function resetToInitialState() {
+                    clearOrderLocation('from');
+                    clearOrderLocation('to');
+                    dom.driverInfoScreen.classList.add('hidden');
+                }
 
-                // Event Listeners
-                fromBtn.addEventListener('click', () => openSheet('from'));
-                toBtn.addEventListener('click', () => openSheet('to'));
-                fromClearBtn.addEventListener('click', (e) => { e.stopPropagation(); clearOrderLocation('from'); });
-                toClearBtn.addEventListener('click', (e) => { e.stopPropagation(); clearOrderLocation('to'); });
-                overlay.addEventListener('click', closeSheet);
+                // --- Geocoding ---
+                async function geocode(query) {
+                    if (query.length < 3) { dom.searchResults.innerHTML = ''; return; }
+                    const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?bbox=${KOZMODEMYANSK_BBOX.join(',')}&access_token=${MAPBOX_TOKEN}&language=ru-RU&country=RU`;
+                    const response = await fetch(url);
+                    const data = await response.json();
+                    displayGeocodeResults(data.features);
+                }
 
-                geocoderInput.addEventListener('input', () => {
-                    clearTimeout(geocodeTimer);
-                    geocodeTimer = setTimeout(() => geocode(geocoderInput.value), 300);
-                });
+                function displayGeocodeResults(features) {
+                    dom.searchResults.innerHTML = '';
+                    features.forEach(feature => {
+                        const item = document.createElement('div');
+                        item.className = 'p-3 border-b border-gray-200 cursor-pointer hover:bg-gray-100';
+                        item.textContent = feature.place_name;
+                        item.onclick = () => updateOrderLocation(feature, searchContext);
+                        dom.searchResults.appendChild(item);
+                    });
+                }
+                
+                async function reverseGeocode(coords, context) {
+                    const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${coords[1]},${coords[0]}.json?types=address,poi&access_token=${MAPBOX_TOKEN}&language=ru-RU`;
+                    const response = await fetch(url);
+                    const data = await response.json();
+                    if (data.features && data.features.length > 0) {
+                       updateOrderLocation(data.features[0], context);
+                    }
+                }
+
+                function handleMapClick(e) {
+                    const context = !orderData.from ? 'from' : !orderData.to ? 'to' : null;
+                    if (!context) return;
+                    reverseGeocode([e.latlng.lat, e.latlng.lng], context);
+                }
+
+                // --- EVENT LISTENERS ---
+                dom.fromBtn.onclick = () => openSheet('from');
+                dom.toBtn.onclick = () => openSheet('to');
+                dom.fromClear.onclick = (e) => { e.stopPropagation(); clearOrderLocation('from'); };
+                dom.toClear.onclick = (e) => { e.stopPropagation(); clearOrderLocation('to'); };
+                dom.overlay.onclick = closeSheet;
+                dom.cancelOrderBtn.onclick = resetToInitialState;
+
+                dom.searchInput.oninput = () => {
+                    clearTimeout(searchTimer);
+                    searchTimer = setTimeout(() => geocode(dom.searchInput.value), 300);
+                };
                 
                 tg.onEvent('mainButtonClicked', () => {
-                    if (!orderData.from || !orderData.to) return;
                     const finalData = {
                         queryId: tg.initDataUnsafe?.query_id, user: tg.initDataUnsafe?.user,
-                        order: {
-                            from: { address: orderData.from.address, coords: orderData.from.coords },
-                            to: { address: orderData.to.address, coords: orderData.to.coords },
-                        }
+                        order: { ...orderData, tariff: selectedTariff.name, price: calculatePrice(selectedTariff) }
                     };
                     tg.sendData(JSON.stringify(finalData));
-                    searchingScreen.classList.remove('hidden');
+                    
                     tg.MainButton.hide();
+                    dom.orderDetails.classList.add('hidden');
+                    dom.searchingScreen.classList.remove('hidden');
+
+                    // --- Simulate finding a driver ---
+                    setTimeout(() => {
+                        dom.searchingScreen.classList.add('hidden');
+                        dom.driverInfoScreen.classList.remove('hidden');
+                    }, 4000); // 4 second delay
                 });
 
             } catch (e) {
