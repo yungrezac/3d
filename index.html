@@ -126,7 +126,7 @@
             try {
                 // --- CONFIGURATION ---
                 const tg = window.Telegram.WebApp;
-                const MAPBOX_TOKEN = 'pk.eyJ1IjoieXVuZ3JlemFjIiwiYSI6ImNtOW1ZzJ6bDBjNHUyanI3ejc5eXo1d2MifQ._tryk9cXjfReUGLGnNkm6Q';
+                const MAPBOX_TOKEN = 'pk.eyJ1IjoieXVuZ3JlemFjIiwiYSI6ImNtOW10ZzJ6bDBjNHUyanI3ejc5eXo1d2MifQ._tryk9cXjfReUGLGnNkm6Q';
                 const KOZMODEMYANSK_CENTER = [56.3339, 46.5704]; // Lat, Lon
                 const KOZMODEMYANSK_BBOX = [46.45, 56.29, 46.69, 56.37]; // Lng, Lat, Lng, Lat
                 const TARIFFS = [
@@ -156,7 +156,8 @@
                     tariffsContainer: document.getElementById('tariffs-container'),
                     searchingScreen: document.getElementById('searching-screen'),
                     driverInfoScreen: document.getElementById('driver-info-screen'),
-                    cancelOrderBtn: document.getElementById('cancel-order-btn')
+                    cancelOrderBtn: document.getElementById('cancel-order-btn'),
+                    mainPanel: document.getElementById('main-panel')
                 };
 
                 // --- STATE ---
@@ -169,6 +170,7 @@
                 // --- INITIALIZATION ---
                 tg.ready();
                 tg.expand();
+                tg.BackButton.hide();
                 initializeMap();
 
                 // --- FUNCTIONS ---
@@ -243,9 +245,9 @@
                     resetToAddressInput();
                 }
                 
-                function checkOrderReady() {
+                async function checkOrderReady() {
                     if (orderData.from && orderData.to) {
-                        fetchRouteAndPrice();
+                        await fetchRouteAndPrice();
                     }
                 }
 
@@ -298,9 +300,7 @@
                 }
 
                 function calculatePrice(tariff) {
-                    const basePrice = 50;
-                    const pricePerKm = 15;
-                    const pricePerMin = 4;
+                    const basePrice = 50; const pricePerKm = 15; const pricePerMin = 4;
                     const price = basePrice + (orderData.distance / 1000) * pricePerKm + (orderData.duration / 60) * pricePerMin;
                     return Math.round(price * tariff.multiplier);
                 }
@@ -328,12 +328,15 @@
                     dom.orderDetails.classList.add('hidden');
                     if (routeLine && map.hasLayer(routeLine)) routeLine.remove();
                     updateMainButton();
+                    tg.BackButton.hide();
                 }
                 
                 function resetToInitialState() {
                     clearOrderLocation('from');
                     clearOrderLocation('to');
                     dom.driverInfoScreen.classList.add('hidden');
+                    dom.mainPanel.classList.remove('hidden');
+                    map.setView(KOZMODEMYANSK_CENTER, 13);
                 }
 
                 // --- Geocoding ---
@@ -385,22 +388,30 @@
                 };
                 
                 tg.onEvent('mainButtonClicked', () => {
+                    // TODO: This is where the call to your backend should be.
+                    // Instead of tg.sendData(), you would use fetch() to send the order
+                    // to your server and then poll for status updates.
+                    // For now, we simulate this process.
+                    
                     const finalData = {
-                        queryId: tg.initDataUnsafe?.query_id, user: tg.initDataUnsafe?.user,
+                        queryId: tg.initDataUnsafe?.queryId, user: tg.initDataUnsafe?.user,
                         order: { ...orderData, tariff: selectedTariff.name, price: calculatePrice(selectedTariff) }
                     };
-                    tg.sendData(JSON.stringify(finalData));
-                    
+                    console.log("Order Data Sent to Backend (simulation):", JSON.stringify(finalData, null, 2));
+
                     tg.MainButton.hide();
-                    dom.orderDetails.classList.add('hidden');
+                    dom.mainPanel.classList.add('hidden');
                     dom.searchingScreen.classList.remove('hidden');
 
                     // --- Simulate finding a driver ---
                     setTimeout(() => {
                         dom.searchingScreen.classList.add('hidden');
                         dom.driverInfoScreen.classList.remove('hidden');
+                        tg.BackButton.show();
                     }, 4000); // 4 second delay
                 });
+                
+                tg.onEvent('backButtonClicked', resetToInitialState);
 
             } catch (e) {
                 console.error("Critical Error:", e);
