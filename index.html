@@ -8,12 +8,11 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Telegram Web App SDK -->
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <!-- Mapbox GL JS (Stable Version) -->
-    <script src='https://api.mapbox.com/mapbox-gl-js/v2.9.2/mapbox-gl.js'></script>
-    <link href='https://api.mapbox.com/mapbox-gl-js/v2.9.2/mapbox-gl.css' rel='stylesheet' />
-    <!-- Mapbox Geocoder Plugin -->
-    <script src="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-geocoder/v5.0.0/mapbox-gl-geocoder.min.js"></script>
-    <link rel="stylesheet" href="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-geocoder/v5.0.0/mapbox-gl-geocoder.css" type="text/css">
+    
+    <!-- FIX: Replaced Mapbox GL JS with Leaflet.js to solve cross-origin errors -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    
     <!-- Font Awesome for icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <style>
@@ -30,29 +29,15 @@
             top: 0;
             bottom: 0;
             width: 100%;
+            z-index: 0;
         }
         #bottom-sheet {
             transform: translateY(100%);
             transition: transform 0.3s ease-in-out;
+            z-index: 20;
         }
         #bottom-sheet.is-open {
             transform: translateY(0);
-        }
-        .mapboxgl-ctrl-geocoder {
-            box-shadow: none;
-            width: 100%;
-            max-width: none;
-            background-color: transparent;
-        }
-        .mapboxgl-ctrl-geocoder--input {
-            height: 48px;
-            padding-left: 10px;
-            font-size: 1rem;
-            background-color: #f3f4f6;
-            border-radius: 0.75rem;
-        }
-        .mapboxgl-ctrl-geocoder--input:focus {
-            outline: 2px solid var(--tg-theme-button-color, #2481cc);
         }
         .address-btn {
             background-color: var(--tg-theme-secondary-bg-color, #ffffff);
@@ -67,10 +52,31 @@
             font-weight: 500;
         }
         .clear-btn {
-            display: none; /* Скрыт по умолчанию */
+            display: none;
         }
         .filled ~ .clear-btn {
-            display: block; /* Показываем, когда адрес заполнен */
+            display: block;
+        }
+        /* New styles for geocoder input and results */
+        #geocoder-input {
+            height: 48px;
+            padding-left: 10px;
+            font-size: 1rem;
+            background-color: #f3f4f6;
+            border-radius: 0.75rem;
+            width: 100%;
+            border: 2px solid transparent;
+        }
+        #geocoder-input:focus {
+            outline: none;
+            border-color: var(--tg-theme-button-color, #2481cc);
+        }
+        #geocoder-results {
+            max-height: calc(90vh - 150px);
+            overflow-y: auto;
+        }
+        .leaflet-control-attribution, .leaflet-control-zoom {
+            z-index: 1;
         }
     </style>
 </head>
@@ -78,7 +84,7 @@
 
     <div id="map"></div>
 
-    <div id="controls" class="fixed bottom-0 left-0 w-full p-4 bg-[var(--tg-theme-secondary-bg-color,#ffffff)] rounded-t-2xl shadow-lg space-y-3 border-t border-gray-200">
+    <div id="controls" class="fixed bottom-0 left-0 w-full p-4 bg-[var(--tg-theme-secondary-bg-color,#ffffff)] rounded-t-2xl shadow-lg space-y-3 border-t border-gray-200 z-10">
         <div class="relative flex items-center">
             <button id="from-btn" class="address-btn w-full text-left flex items-center p-3 rounded-xl">
                 <span class="flex-shrink-0 w-6 text-center text-green-500"><i class="fas fa-map-marker-alt"></i></span>
@@ -99,12 +105,15 @@
         </div>
     </div>
 
-    <div id="bottom-sheet" class="fixed bottom-0 left-0 w-full h-[90vh] bg-[var(--tg-theme-secondary-bg-color,#ffffff)] rounded-t-2xl shadow-2xl flex flex-col z-20">
+    <div id="bottom-sheet" class="fixed bottom-0 left-0 w-full h-[90vh] bg-[var(--tg-theme-secondary-bg-color,#ffffff)] rounded-t-2xl shadow-2xl flex flex-col">
         <div class="p-4 flex-shrink-0">
             <div class="w-10 h-1.5 bg-gray-300 rounded-full mx-auto mb-3"></div>
             <h3 id="sheet-title" class="text-xl font-bold text-center">Укажите адрес</h3>
         </div>
-        <div id="geocoder-container" class="px-4"></div>
+        <div class="px-4 pb-4 flex-shrink-0">
+             <input type="text" id="geocoder-input" placeholder="Введите улицу и номер дома">
+        </div>
+        <div id="geocoder-results" class="flex-grow overflow-y-auto px-4"></div>
     </div>
     
     <div id="overlay" class="fixed inset-0 bg-black bg-opacity-40 z-10 hidden"></div>
@@ -125,10 +134,9 @@
             try {
                 const tg = window.Telegram.WebApp;
 
-                const MAPBOX_TOKEN = 'pk.eyJ1IjoieXVuZ3JlemFjIiwiYSI6ImNtOW10ZzJ6bDBjNHUyanI3ejc5eXo1d2MifQ._tryk9-cXjfReUGLGnNkm6Q';
-                mapboxgl.accessToken = MAPBOX_TOKEN;
-                const KOZMODEMYANSK_CENTER = [46.5704, 56.3339]; 
-                const KOZMODEMYANSK_BBOX = [46.45, 56.29, 46.69, 56.37];
+                const MAPBOX_TOKEN = 'pk.eyJ1IjoieXVuZ3JlemFjIiwiYSI6ImNtOW10ZzJ6bDBjNHUyanI3ejc5eXo1d2MifQ._tryk9cXjfReUGLGnNkm6Q';
+                const KOZMODEMYANSK_CENTER = [56.3339, 46.5704]; // Lat, Lon for Leaflet
+                const KOZMODEMYANSK_BBOX = [46.45, 56.29, 46.69, 56.37]; // Lon, Lat, Lon, Lat
 
                 const bottomSheet = document.getElementById('bottom-sheet');
                 const sheetTitle = document.getElementById('sheet-title');
@@ -140,10 +148,13 @@
                 const fromClearBtn = document.getElementById('from-clear-btn');
                 const toClearBtn = document.getElementById('to-clear-btn');
                 const searchingScreen = document.getElementById('searching-screen');
+                const geocoderInput = document.getElementById('geocoder-input');
+                const geocoderResults = document.getElementById('geocoder-results');
 
-                let map, geocoder, markerFrom, markerTo;
+                let map, markerFrom, markerTo;
                 let currentSearchContext = null; 
                 let orderData = { from: null, to: null };
+                let geocodeTimer;
 
                 tg.ready();
                 tg.expand();
@@ -154,57 +165,44 @@
                     sheetTitle.textContent = context === 'from' ? 'Укажите место отправления' : 'Куда поедете?';
                     bottomSheet.classList.add('is-open');
                     overlay.classList.remove('hidden');
-                    geocoder.clear();
-                    setTimeout(() => document.querySelector('.mapboxgl-ctrl-geocoder--input').focus(), 300);
+                    geocoderInput.value = '';
+                    geocoderResults.innerHTML = '';
+                    setTimeout(() => geocoderInput.focus(), 300);
                 }
 
                 function closeSheet() {
                     bottomSheet.classList.remove('is-open');
                     overlay.classList.add('hidden');
-                    document.querySelector('.mapboxgl-ctrl-geocoder--input').blur();
-                    currentSearchContext = null; // FIX: Reset context on close
+                    geocoderInput.blur();
+                    currentSearchContext = null;
                 }
                 
                 function formatAddress(feature) {
-                    const houseNumber = feature.address;
-                    const street = feature.text;
-                    if (street && houseNumber && street.includes(houseNumber)) return street;
-                    if (street && houseNumber) return `${street}, ${houseNumber}`;
-                    return street || feature.place_name.split(',')[0];
+                    return feature.place_name.split(',')[0];
                 }
 
                 function initializeMap() {
-                    map = new mapboxgl.Map({
-                        container: 'map', 
-                        style: 'mapbox://styles/mapbox/streets-v12',
-                        center: KOZMODEMYANSK_CENTER, 
-                        zoom: 13,
-                        attributionControl: false
-                    });
-                    
-                    map.addControl(new mapboxgl.AttributionControl({ compact: true }), 'bottom-right');
+                    map = L.map('map', { zoomControl: false }).setView(KOZMODEMYANSK_CENTER, 13);
+                    L.tileLayer(`https://api.mapbox.com/styles/v1/mapbox/streets-v11/tiles/{z}/{x}/{y}?access_token=${MAPBOX_TOKEN}`, {
+                        attribution: '&copy; <a href="https://www.mapbox.com/about/maps/">Mapbox</a> &copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+                        tileSize: 512,
+                        zoomOffset: -1,
+                    }).addTo(map);
 
-                    geocoder = new MapboxGeocoder({
-                        accessToken: MAPBOX_TOKEN, mapboxgl: mapboxgl, marker: false,
-                        bbox: KOZMODEMYANSK_BBOX, language: 'ru-RU', country: 'RU',
-                        placeholder: "Введите улицу и номер дома"
-                    });
+                    const greenIcon = L.icon({ iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png', shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png', iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34], shadowSize: [41, 41] });
+                    const redIcon = L.icon({ iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png', shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png', iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34], shadowSize: [41, 41] });
                     
-                    document.getElementById('geocoder-container').appendChild(geocoder.onAdd(map));
-                    
-                    markerFrom = new mapboxgl.Marker({ color: '#16a34a' });
-                    markerTo = new mapboxgl.Marker({ color: '#dc2626' });
+                    markerFrom = L.marker([0,0], { icon: greenIcon });
+                    markerTo = L.marker([0,0], { icon: redIcon });
 
-                    geocoder.on('result', (event) => updateOrderLocation(event.result, currentSearchContext));
-                    
                     map.on('click', handleMapClick);
                 }
-
+                
                 function updateOrderLocation(feature, context) {
-                    if (!context) return; // Do nothing if context is not set
+                    if (!context) return;
 
                     const address = formatAddress(feature);
-                    const coords = feature.geometry.coordinates;
+                    const coords = [feature.center[1], feature.center[0]]; // Lat, Lon for Leaflet
 
                     const textElement = context === 'from' ? fromText : toText;
                     const marker = context === 'from' ? markerFrom : markerTo;
@@ -213,13 +211,16 @@
                     textElement.classList.remove('placeholder');
                     textElement.classList.add('filled');
                     
-                    marker.setLngLat(coords).addTo(map);
+                    if (!map.hasLayer(marker)) {
+                        marker.addTo(map);
+                    }
+                    marker.setLatLng(coords);
 
                     orderData[context] = { address, coords };
                     
                     closeSheet();
                     checkOrderReady();
-                    map.flyTo({ center: coords, zoom: 15 });
+                    map.flyTo(coords, 15);
                 }
                 
                 function clearOrderLocation(context) {
@@ -232,18 +233,40 @@
                     textElement.classList.add('placeholder');
                     textElement.classList.remove('filled');
                     
-                    marker.remove();
+                    if (map.hasLayer(marker)) {
+                        marker.removeFrom(map);
+                    }
                     orderData[context] = null;
                     checkOrderReady();
                 }
 
                 function handleMapClick(e) {
-                    // Logic to determine which point to set on map click
                     const context = currentSearchContext || (!orderData.from ? 'from' : !orderData.to ? 'to' : null);
-                    if (!context) return; // Both points are set, do nothing
-                    reverseGeocode(e.lngLat.toArray(), context);
+                    if (!context) return;
+                    reverseGeocode([e.latlng.lng, e.latlng.lat], context);
                 }
                 
+                async function geocode(query) {
+                    if (query.length < 3) {
+                        geocoderResults.innerHTML = '';
+                        return;
+                    }
+                    const response = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?bbox=${KOZMODEMYANSK_BBOX.join(',')}&access_token=${MAPBOX_TOKEN}&language=ru-RU&country=RU`);
+                    const data = await response.json();
+                    displayGeocodeResults(data.features);
+                }
+
+                function displayGeocodeResults(features) {
+                    geocoderResults.innerHTML = '';
+                    features.forEach(feature => {
+                        const li = document.createElement('div');
+                        li.className = 'p-3 border-b border-gray-200 cursor-pointer hover:bg-gray-100';
+                        li.textContent = feature.place_name;
+                        li.onclick = () => updateOrderLocation(feature, currentSearchContext);
+                        geocoderResults.appendChild(li);
+                    });
+                }
+
                 async function reverseGeocode(coords, context) {
                     try {
                         const response = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${coords[0]},${coords[1]}.json?types=address,poi&access_token=${MAPBOX_TOKEN}&language=ru-RU`);
@@ -253,12 +276,10 @@
                         }
                     } catch (error) {
                         console.error("Reverse geocoding failed:", error);
-                        // Optionally show an error to the user
                     }
                 }
                 
                 function checkOrderReady() {
-                    // FIX: Corrected typo from `order.to` to `orderData.to`
                     if (orderData.from && orderData.to) {
                         tg.MainButton.setText('Найти водителя');
                         tg.MainButton.show();
@@ -270,19 +291,17 @@
                 // Event Listeners
                 fromBtn.addEventListener('click', () => openSheet('from'));
                 toBtn.addEventListener('click', () => openSheet('to'));
-                fromClearBtn.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    clearOrderLocation('from');
-                });
-                toClearBtn.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    clearOrderLocation('to');
-                });
-
+                fromClearBtn.addEventListener('click', (e) => { e.stopPropagation(); clearOrderLocation('from'); });
+                toClearBtn.addEventListener('click', (e) => { e.stopPropagation(); clearOrderLocation('to'); });
                 overlay.addEventListener('click', closeSheet);
+
+                geocoderInput.addEventListener('input', () => {
+                    clearTimeout(geocodeTimer);
+                    geocodeTimer = setTimeout(() => geocode(geocoderInput.value), 300);
+                });
                 
                 tg.onEvent('mainButtonClicked', () => {
-                    if (!orderData.from || !orderData.to) return; // Safety check
+                    if (!orderData.from || !orderData.to) return;
                     const finalData = {
                         queryId: tg.initDataUnsafe?.query_id, user: tg.initDataUnsafe?.user,
                         order: {
