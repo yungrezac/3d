@@ -16,7 +16,6 @@
 
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <style>
-        /* Стили для плавного появления элементов и кастомный цвет кнопки Telegram */
         body {
             background-color: var(--tg-theme-bg-color, #f3f4f6);
             color: var(--tg-theme-text-color, #111827);
@@ -33,15 +32,23 @@
         .fade-in {
             animation: fadeIn 0.5s ease-out forwards;
         }
-        /* Стили для карты, чтобы она не обрезалась */
         #map {
             width: 100%;
-            flex-grow: 1; /* Карта занимает все доступное место */
-            border-radius: 1rem; /* Скругление углов */
+            flex-grow: 1;
+            border-radius: 1rem;
         }
-        /* Убираем логотип Mapbox, но оставляем атрибуцию */
-        .mapboxgl-ctrl-logo, .mapboxgl-ctrl-attrib-inner {
-            display: none !important;
+        /* Стилизация полей ввода Mapbox Geocoder */
+        .mapboxgl-ctrl-geocoder, .mapboxgl-ctrl-geocoder--input {
+            width: 100% !important;
+            max-width: 100% !important;
+            font-size: 1rem !important;
+            box-shadow: none !important;
+        }
+        .mapboxgl-ctrl-geocoder .mapboxgl-ctrl-geocoder--pin-right * {
+            display: none; /* Скрываем лишние иконки */
+        }
+        .mapboxgl-ctrl-geocoder {
+             background-color: transparent;
         }
     </style>
 </head>
@@ -67,13 +74,18 @@
 
             <!-- Поля ввода адреса -->
             <div class="bg-[var(--tg-theme-secondary-bg-color,#ffffff)] p-4 rounded-2xl shadow-md space-y-4">
-                <div id="geocoder-from-container" class="relative"></div>
-                <div id="geocoder-to-container" class="relative"></div>
+                <div class="relative flex items-center">
+                    <span class="text-green-500 mx-3"><i class="fas fa-map-marker-alt"></i></span>
+                    <div id="geocoder-from-container" class="w-full"></div>
+                </div>
+                <div class="relative flex items-center">
+                    <span class="text-red-500 mx-3"><i class="fas fa-flag-checkered"></i></span>
+                    <div id="geocoder-to-container" class="w-full"></div>
+                </div>
             </div>
 
             <!-- Карта -->
             <div id="map" class="my-4"></div>
-            
         </div>
         
          <!-- Экран поиска -->
@@ -97,9 +109,7 @@
             // --- Конфигурация Mapbox ---
             const MAPBOX_TOKEN = 'pk.eyJ1IjoieXVuZ3JlemFjIiwiYSI6ImNtOW10ZzJ6bDBjNHUyanI3ejc5eXo1d2MifQ._tryk9cXjfReUGLGnNkm6Q';
             mapboxgl.accessToken = MAPBOX_TOKEN;
-            // Координаты Козьмодемьянска
             const KOZMODEMYANSK_CENTER = [46.5704, 56.3339]; 
-            // Границы для поиска (чтобы результаты были релевантны)
             const KOZMODEMYANSK_BBOX = [46.45, 56.29, 46.69, 56.37];
 
             // --- Элементы интерфейса ---
@@ -111,9 +121,7 @@
             const backBtn = document.getElementById('back-btn');
             const userGreeting = document.getElementById('user-greeting');
             
-            let map; // Переменная для хранения объекта карты
-            let geocoderFrom, geocoderTo; // Переменные для геокодеров
-            let markerFrom, markerTo; // Переменные для маркеров
+            let map, geocoderFrom, geocoderTo, markerFrom, markerTo;
 
             // 1. Инициализация приложения
             tg.ready();
@@ -130,7 +138,6 @@
                 [welcomeScreen, orderScreen, searchingScreen].forEach(s => s.classList.add('hidden'));
                 screen.classList.remove('hidden');
                 
-                // Инициализируем карту, только когда показываем экран заказа
                 if (screen === orderScreen && !map) {
                     initializeMap();
                 }
@@ -148,84 +155,86 @@
                 tg.MainButton.hide();
                 tg.BackButton.hide();
             });
+            
+            // --- НОВАЯ ФУНКЦИЯ: Форматирование адреса ---
+            // Принимает объект feature от Mapbox и возвращает "Улица, номер дома"
+            function formatAddress(feature) {
+                const houseNumber = feature.address;
+                const street = feature.text;
+
+                if (street && houseNumber) {
+                    // Проверяем, не содержит ли улица уже номер дома, чтобы избежать дублирования
+                    if (street.includes(houseNumber)) {
+                        return street;
+                    }
+                    return `${street}, ${houseNumber}`;
+                }
+                return street || feature.place_name.split(',')[0]; // Фоллбэк
+            }
 
             // --- Инициализация карты и геокодеров ---
             function initializeMap() {
                 map = new mapboxgl.Map({
-                    container: 'map',
-                    style: 'mapbox://styles/mapbox/streets-v12',
-                    center: KOZMODEMYANSK_CENTER,
-                    zoom: 13
+                    container: 'map', style: 'mapbox://styles/mapbox/streets-v12',
+                    center: KOZMODEMYANSK_CENTER, zoom: 13
                 });
 
                 const geocoderOptions = {
-                    accessToken: MAPBOX_TOKEN,
-                    mapboxgl: mapboxgl,
-                    marker: false, // Мы будем создавать свои маркеры
-                    bbox: KOZMODEMYANSK_BBOX, // Ограничиваем поиск городом
-                    language: 'ru-RU', // Язык результатов
-                    country: 'RU'
+                    accessToken: MAPBOX_TOKEN, mapboxgl: mapboxgl, marker: false,
+                    bbox: KOZMODEMYANSK_BBOX, language: 'ru-RU', country: 'RU'
                 };
                 
-                // Геокодер для поля "Откуда"
                 geocoderFrom = new MapboxGeocoder({ ...geocoderOptions, placeholder: 'Откуда?' });
                 document.getElementById('geocoder-from-container').appendChild(geocoderFrom.onAdd(map));
                 
-                // Геокодер для поля "Куда"
                 geocoderTo = new MapboxGeocoder({ ...geocoderOptions, placeholder: 'Куда?' });
                 document.getElementById('geocoder-to-container').appendChild(geocoderTo.onAdd(map));
                 
-                // Создаем кастомные маркеры
-                markerFrom = new mapboxgl.Marker({ color: '#16a34a', draggable: true }).setLngLat(map.getCenter());
-                markerTo = new mapboxgl.Marker({ color: '#dc2626', draggable: true }).setLngLat(map.getCenter());
+                markerFrom = new mapboxgl.Marker({ color: '#16a34a', draggable: true });
+                markerTo = new mapboxgl.Marker({ color: '#dc2626', draggable: true });
                 
-                // Обработчики событий для геокодеров
-                geocoderFrom.on('result', (e) => handleGeocoderResult(e, 'from'));
-                geocoderTo.on('result', (e) => handleGeocoderResult(e, 'to'));
-
-                // Добавляем обработку клика по карте
-                 map.on('click', (e) => {
-                    // Устанавливаем маркер "Откуда", если он еще не установлен
-                    if (!geocoderFrom.getProximity()) {
-                         handleMapClick(e.lngLat, 'from');
-                    } else { // Иначе устанавливаем маркер "Куда"
-                         handleMapClick(e.lngLat, 'to');
-                    }
-                });
-            }
-
-            function handleGeocoderResult(event, type) {
-                const coords = event.result.geometry.coordinates;
-                if (type === 'from') {
+                // ИЗМЕНЕНО: Обработчики событий для геокодеров
+                geocoderFrom.on('result', (event) => {
+                    const feature = event.result;
+                    const coords = feature.geometry.coordinates;
+                    geocoderFrom.setInput(formatAddress(feature)); // Устанавливаем короткий адрес
                     markerFrom.setLngLat(coords).addTo(map);
-                } else {
+                    map.flyTo({ center: coords, zoom: 15 });
+                });
+
+                geocoderTo.on('result', (event) => {
+                    const feature = event.result;
+                    const coords = feature.geometry.coordinates;
+                    geocoderTo.setInput(formatAddress(feature)); // Устанавливаем короткий адрес
                     markerTo.setLngLat(coords).addTo(map);
-                }
-                map.flyTo({ center: coords, zoom: 15 });
+                    map.flyTo({ center: coords, zoom: 15 });
+                });
+
+                map.on('click', (e) => {
+                    if (!geocoderFrom.getInput()) handleMapClick(e.lngLat, 'from');
+                    else handleMapClick(e.lngLat, 'to');
+                });
             }
 
             function handleMapClick(lngLat, type) {
                 const coords = [lngLat.lng, lngLat.lat];
-                 if (type === 'from') {
-                    markerFrom.setLngLat(coords).addTo(map);
-                    geocoderFrom.setProximity({longitude: coords[0], latitude: coords[1]}); // Для улучшения поиска
-                    reverseGeocode(coords, geocoderFrom);
-                } else {
-                    markerTo.setLngLat(coords).addTo(map);
-                    geocoderTo.setProximity({longitude: coords[0], latitude: coords[1]});
-                    reverseGeocode(coords, geocoderTo);
-                }
+                const marker = type === 'from' ? markerFrom : markerTo;
+                const geocoder = type === 'from' ? geocoderFrom : geocoderTo;
+                
+                marker.setLngLat(coords).addTo(map);
+                reverseGeocode(coords, geocoder);
             }
             
+            // ИЗМЕНЕНО: Функция обратного геокодирования
             async function reverseGeocode(coords, geocoder) {
-                const response = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${coords[0]},${coords[1]}.json?access_token=${MAPBOX_TOKEN}&language=ru-RU`);
+                // Запрашиваем только адреса (address) или точки интереса (poi) для точности
+                const response = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${coords[0]},${coords[1]}.json?types=address,poi&access_token=${MAPBOX_TOKEN}&language=ru-RU`);
                 const data = await response.json();
                 if (data.features && data.features.length > 0) {
-                    const placeName = data.features[0].place_name;
-                    geocoder.setInput(placeName);
+                    const feature = data.features[0];
+                    geocoder.setInput(formatAddress(feature)); // Устанавливаем короткий адрес
                 }
             }
-
 
             // --- Логика главной кнопки ---
             const onMainButtonClick = () => {
@@ -238,17 +247,10 @@
                 }
                 
                 const orderData = {
-                    queryId: tg.initDataUnsafe?.query_id,
-                    user: tg.initDataUnsafe?.user,
+                    queryId: tg.initDataUnsafe?.query_id, user: tg.initDataUnsafe?.user,
                     order: {
-                        from: {
-                            address: fromAddress,
-                            coords: markerFrom.getLngLat()
-                        },
-                        to: {
-                           address: toAddress,
-                           coords: markerTo.getLngLat()
-                        },
+                        from: { address: fromAddress, coords: markerFrom.getLngLat() },
+                        to: { address: toAddress, coords: markerTo.getLngLat() },
                     }
                 };
                 
@@ -259,12 +261,8 @@
             };
 
             tg.onEvent('mainButtonClicked', onMainButtonClick);
-
-            // Обработка кнопки "Назад" в самом клиенте Telegram
             tg.BackButton.onClick(() => {
-                if (!orderScreen.classList.contains('hidden')) {
-                     backBtn.click();
-                }
+                if (!orderScreen.classList.contains('hidden')) backBtn.click();
             });
         });
     </script>
