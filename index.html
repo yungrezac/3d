@@ -8,9 +8,14 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Telegram Web App SDK -->
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <!-- Leaflet.js -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    
+    <!-- FIX: Using the latest version of Mapbox GL JS -->
+    <script src='https://api.mapbox.com/mapbox-gl-js/v3.4.0/mapbox-gl.js'></script>
+    <link href='https://api.mapbox.com/mapbox-gl-js/v3.4.0/mapbox-gl.css' rel='stylesheet' />
+    <!-- Mapbox Geocoder Plugin -->
+    <script src="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-geocoder/v5.0.0/mapbox-gl-geocoder.min.js"></script>
+    <link rel="stylesheet" href="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-geocoder/v5.0.0/mapbox-gl-geocoder.css" type="text/css">
+
     <!-- Font Awesome for icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <style>
@@ -28,16 +33,12 @@
         .address-text.filled { color: var(--tg-theme-text-color, #111827); font-weight: 500; }
         .clear-btn { display: none; }
         .filled ~ .clear-btn { display: block; }
-        #geocoder-input { height: 48px; padding-left: 10px; font-size: 1rem; background-color: #f3f4f6; border-radius: 0.75rem; width: 100%; border: 2px solid transparent; }
-        #geocoder-input:focus { outline: none; border-color: var(--tg-theme-button-color, #2481cc); }
-        #geocoder-results { max-height: calc(90vh - 150px); overflow-y: auto; }
         .leaflet-control-attribution, .leaflet-control-zoom { z-index: 1; }
-        /* Tariff selection styles */
-        .tariff-card { transition: all 0.2s ease-in-out; border: 2px solid transparent; }
-        .tariff-card.selected { border-color: var(--tg-theme-button-color, #2481cc); background-color: var(--tg-theme-secondary-bg-color, #f9fafb); }
-        /* Hide scrollbar */
-        #tariffs-container::-webkit-scrollbar { display: none; }
-        #tariffs-container { -ms-overflow-style: none; scrollbar-width: none; }
+        
+        /* Mapbox Geocoder Customization */
+        .mapboxgl-ctrl-geocoder { box-shadow: none; width: 100%; max-width: none; background-color: transparent; }
+        .mapboxgl-ctrl-geocoder--input { height: 48px; padding-left: 10px; font-size: 1rem; background-color: #f3f4f6; border-radius: 0.75rem; }
+        .mapboxgl-ctrl-geocoder--input:focus { outline: 2px solid var(--tg-theme-button-color, #2481cc); }
     </style>
 </head>
 <body>
@@ -70,12 +71,16 @@
 
         <!-- Order details state -->
         <div id="order-details" class="hidden p-4">
-            <div class="flex justify-between items-center text-sm text-gray-600 mb-3 px-1">
-                <span id="route-distance"></span>
-                <span id="route-duration"></span>
-            </div>
-            <div id="tariffs-container" class="flex space-x-3 overflow-x-auto pb-3">
-                <!-- Tariff cards will be injected here -->
+            <div class="flex justify-around items-center text-center text-gray-800">
+                <div class="w-1/2">
+                    <p class="text-sm text-gray-500">Расстояние</p>
+                    <p id="route-distance" class="font-bold text-lg"></p>
+                </div>
+                 <div class="border-l h-8 border-gray-200"></div>
+                <div class="w-1/2">
+                    <p class="text-sm text-gray-500">Время в пути</p>
+                    <p id="route-duration" class="font-bold text-lg"></p>
+                </div>
             </div>
         </div>
     </div>
@@ -102,10 +107,7 @@
             <div class="w-10 h-1.5 bg-gray-300 rounded-full mx-auto mb-3"></div>
             <h3 id="sheet-title" class="text-xl font-bold text-center">Укажите адрес</h3>
         </div>
-        <div class="px-4 pb-4 flex-shrink-0">
-             <input type="text" id="geocoder-input" placeholder="Введите улицу и номер дома">
-        </div>
-        <div id="geocoder-results" class="flex-grow overflow-y-auto px-4"></div>
+        <div id="geocoder-container" class="px-4 flex-grow"></div>
     </div>
     
     <div id="overlay" class="fixed inset-0 bg-black bg-opacity-40 z-10 hidden"></div>
@@ -127,17 +129,12 @@
                 // --- CONFIGURATION ---
                 const tg = window.Telegram.WebApp;
                 const MAPBOX_TOKEN = 'pk.eyJ1IjoieXVuZ3JlemFjIiwiYSI6ImNtOW10ZzJ6bDBjNHUyanI3ejc5eXo1d2MifQ._tryk9cXjfReUGLGnNkm6Q';
-                const KOZMODEMYANSK_CENTER = [56.3339, 46.5704]; // Lat, Lon
+                const KOZMODEMYANSK_CENTER = [46.5704, 56.3339]; // Lng, Lat
                 const KOZMODEMYANSK_BBOX = [46.45, 56.29, 46.69, 56.37]; // Lng, Lat, Lng, Lat
-                const TARIFFS = [
-                    { name: 'Эконом', multiplier: 1, icon: 'fa-car-side' },
-                    { name: 'Комфорт', multiplier: 1.4, icon: 'fa-car' },
-                    { name: 'Бизнес', multiplier: 2.2, icon: 'fa-car-on' }
-                ];
+                const FIXED_PRICE = 120;
 
                 // --- DOM ELEMENTS ---
                 const dom = {
-                    map: 'map',
                     sheet: document.getElementById('bottom-sheet'),
                     sheetTitle: document.getElementById('sheet-title'),
                     overlay: document.getElementById('overlay'),
@@ -147,13 +144,10 @@
                     toText: document.getElementById('to-text'),
                     fromClear: document.getElementById('from-clear-btn'),
                     toClear: document.getElementById('to-clear-btn'),
-                    searchInput: document.getElementById('geocoder-input'),
-                    searchResults: document.getElementById('geocoder-results'),
                     addressControls: document.getElementById('address-controls'),
                     orderDetails: document.getElementById('order-details'),
                     routeDistance: document.getElementById('route-distance'),
                     routeDuration: document.getElementById('route-duration'),
-                    tariffsContainer: document.getElementById('tariffs-container'),
                     searchingScreen: document.getElementById('searching-screen'),
                     driverInfoScreen: document.getElementById('driver-info-screen'),
                     cancelOrderBtn: document.getElementById('cancel-order-btn'),
@@ -161,35 +155,36 @@
                 };
 
                 // --- STATE ---
-                let map, markerFrom, markerTo, routeLine;
+                let map, geocoder, markerFrom, markerTo;
                 let searchContext = null; 
                 let orderData = { from: null, to: null, distance: null, duration: null };
-                let selectedTariff = TARIFFS[0];
-                let searchTimer;
                 
                 // --- INITIALIZATION ---
                 tg.ready();
                 tg.expand();
                 tg.BackButton.hide();
+                mapboxgl.accessToken = MAPBOX_TOKEN;
                 initializeMap();
 
                 // --- FUNCTIONS ---
                 function initializeMap() {
-                    map = L.map(dom.map, { zoomControl: false }).setView(KOZMODEMYANSK_CENTER, 13);
-                    L.tileLayer(`https://api.mapbox.com/styles/v1/mapbox/streets-v11/tiles/{z}/{x}/{y}?access_token=${MAPBOX_TOKEN}`, {
-                        attribution: '&copy; Mapbox &copy; OpenStreetMap', tileSize: 512, zoomOffset: -1
-                    }).addTo(map);
-
-                    const createIcon = (color) => L.icon({ 
-                        iconUrl: `https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-${color}.png`, 
-                        shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png', 
-                        iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34], shadowSize: [41, 41] 
+                    map = new mapboxgl.Map({
+                        container: 'map', style: 'mapbox://styles/mapbox/streets-v12',
+                        center: KOZMODEMYANSK_CENTER, zoom: 13
                     });
                     
-                    markerFrom = L.marker([0,0], { icon: createIcon('green') });
-                    markerTo = L.marker([0,0], { icon: createIcon('red') });
+                    geocoder = new MapboxGeocoder({
+                        accessToken: MAPBOX_TOKEN, mapboxgl: mapboxgl, marker: false,
+                        bbox: KOZMODEMYANSK_BBOX, language: 'ru-RU', country: 'RU',
+                        placeholder: "Введите улицу и номер дома"
+                    });
+                    document.getElementById('geocoder-container').appendChild(geocoder.onAdd(map));
+                    
+                    markerFrom = new mapboxgl.Marker({ color: '#16a34a' });
+                    markerTo = new mapboxgl.Marker({ color: '#dc2626' });
 
                     map.on('click', handleMapClick);
+                    geocoder.on('result', (e) => updateOrderLocation(e.result, searchContext));
                 }
 
                 function openSheet(context) {
@@ -197,15 +192,14 @@
                     dom.sheetTitle.textContent = context === 'from' ? 'Укажите место отправления' : 'Куда поедете?';
                     dom.sheet.classList.add('is-open');
                     dom.overlay.classList.remove('hidden');
-                    dom.searchInput.value = '';
-                    dom.searchResults.innerHTML = '';
-                    setTimeout(() => dom.searchInput.focus(), 300);
+                    geocoder.clear();
+                    setTimeout(() => document.querySelector('.mapboxgl-ctrl-geocoder--input').focus(), 300);
                 }
 
                 function closeSheet() {
                     dom.sheet.classList.remove('is-open');
                     dom.overlay.classList.add('hidden');
-                    dom.searchInput.blur();
+                    document.querySelector('.mapboxgl-ctrl-geocoder--input').blur();
                     searchContext = null;
                 }
                 
@@ -214,7 +208,7 @@
                 function updateOrderLocation(feature, context) {
                     if (!context) return;
                     const address = formatAddress(feature);
-                    const coords = [feature.center[1], feature.center[0]]; // Lat, Lon
+                    const coords = feature.geometry.coordinates; // Lng, Lat
                     const textEl = context === 'from' ? dom.fromText : dom.toText;
                     const marker = context === 'from' ? markerFrom : markerTo;
 
@@ -222,13 +216,12 @@
                     textEl.classList.remove('placeholder');
                     textEl.classList.add('filled');
                     
-                    if (!map.hasLayer(marker)) marker.addTo(map);
-                    marker.setLatLng(coords);
+                    marker.setLngLat(coords).addTo(map);
                     orderData[context] = { address, coords };
                     
                     closeSheet();
                     checkOrderReady();
-                    map.flyTo(coords, 15);
+                    map.flyTo({ center: coords, zoom: 15 });
                 }
                 
                 function clearOrderLocation(context) {
@@ -240,19 +233,19 @@
                     textEl.classList.add('placeholder');
                     textEl.classList.remove('filled');
                     
-                    if (map.hasLayer(marker)) marker.removeFrom(map);
+                    marker.remove();
                     orderData[context] = null;
                     resetToAddressInput();
                 }
                 
                 async function checkOrderReady() {
                     if (orderData.from && orderData.to) {
-                        await fetchRouteAndPrice();
+                        await fetchRoute();
                     }
                 }
 
-                async function fetchRouteAndPrice() {
-                    const coords = `${orderData.from.coords[1]},${orderData.from.coords[0]};${orderData.to.coords[1]},${orderData.to.coords[0]}`;
+                async function fetchRoute() {
+                    const coords = `${orderData.from.coords.join(',')};${orderData.to.coords.join(',')}`;
                     const url = `https://api.mapbox.com/directions/v5/mapbox/driving/${coords}?geometries=geojson&overview=full&access_token=${MAPBOX_TOKEN}`;
                     try {
                         const response = await fetch(url);
@@ -261,62 +254,42 @@
                             const route = data.routes[0];
                             orderData.distance = route.distance; // meters
                             orderData.duration = route.duration; // seconds
-                            drawRoute(route.geometry.coordinates);
+                            drawRoute(route.geometry);
                             displayOrderDetails();
                         }
                     } catch (error) { console.error("Directions API error:", error); }
                 }
 
                 function drawRoute(geometry) {
-                    if (routeLine && map.hasLayer(routeLine)) routeLine.remove();
-                    const latlngs = geometry.map(coord => [coord[1], coord[0]]); // Leaflet needs Lat, Lng
-                    routeLine = L.polyline(latlngs, { color: '#2481cc', weight: 5 }).addTo(map);
-                    map.fitBounds(routeLine.getBounds().pad(0.1));
+                    const sourceId = 'route';
+                    if (map.getSource(sourceId)) {
+                        map.getSource(sourceId).setData(geometry);
+                    } else {
+                        map.addSource(sourceId, { 'type': 'geojson', 'data': geometry });
+                        map.addLayer({
+                            'id': sourceId, 'type': 'line', 'source': sourceId,
+                            'layout': { 'line-join': 'round', 'line-cap': 'round' },
+                            'paint': { 'line-color': '#2481cc', 'line-width': 5 }
+                        });
+                    }
+                    const bounds = new mapboxgl.LngLatBounds(geometry.coordinates[0], geometry.coordinates[0]);
+                    for (const coord of geometry.coordinates) { bounds.extend(coord); }
+                    map.fitBounds(bounds, { padding: 60 });
                 }
 
                 function displayOrderDetails() {
                     dom.addressControls.classList.add('hidden');
                     dom.orderDetails.classList.remove('hidden');
                     
-                    const distanceKm = (orderData.distance / 1000).toFixed(1);
-                    const durationMin = Math.round(orderData.duration / 60);
-                    dom.routeDistance.innerHTML = `<i class="fas fa-road"></i> ${distanceKm} км`;
-                    dom.routeDuration.innerHTML = `<i class="fas fa-clock"></i> ${durationMin} мин`;
+                    dom.routeDistance.textContent = `${(orderData.distance / 1000).toFixed(1)} км`;
+                    dom.routeDuration.textContent = `~${Math.round(orderData.duration / 60)} мин`;
 
-                    dom.tariffsContainer.innerHTML = '';
-                    TARIFFS.forEach(tariff => {
-                        const price = calculatePrice(tariff);
-                        const card = document.createElement('div');
-                        card.className = `tariff-card flex-shrink-0 w-28 p-3 rounded-lg text-center cursor-pointer ${tariff.name === selectedTariff.name ? 'selected' : ''}`;
-                        card.innerHTML = `
-                            <i class="fas ${tariff.icon} text-2xl"></i>
-                            <p class="font-bold mt-1">${tariff.name}</p>
-                            <p class="text-sm font-semibold">${price} ₽</p>
-                        `;
-                        card.onclick = () => handleTariffSelection(tariff);
-                        dom.tariffsContainer.appendChild(card);
-                    });
-                    updateMainButton();
-                }
-
-                function calculatePrice(tariff) {
-                    const basePrice = 50; const pricePerKm = 15; const pricePerMin = 4;
-                    const price = basePrice + (orderData.distance / 1000) * pricePerKm + (orderData.duration / 60) * pricePerMin;
-                    return Math.round(price * tariff.multiplier);
-                }
-
-                function handleTariffSelection(tariff) {
-                    selectedTariff = tariff;
-                    document.querySelectorAll('.tariff-card').forEach(c => c.classList.remove('selected'));
-                    const selectedCard = Array.from(dom.tariffsContainer.children).find(c => c.querySelector('p').textContent === tariff.name);
-                    if (selectedCard) selectedCard.classList.add('selected');
                     updateMainButton();
                 }
 
                 function updateMainButton() {
                     if (orderData.from && orderData.to) {
-                        const price = calculatePrice(selectedTariff);
-                        tg.MainButton.setText(`Заказать за ${price} ₽`);
+                        tg.MainButton.setText(`Заказать за ${FIXED_PRICE} ₽`);
                         tg.MainButton.show();
                     } else {
                         tg.MainButton.hide();
@@ -326,7 +299,7 @@
                 function resetToAddressInput() {
                     dom.addressControls.classList.remove('hidden');
                     dom.orderDetails.classList.add('hidden');
-                    if (routeLine && map.hasLayer(routeLine)) routeLine.remove();
+                    if (map.getSource('route')) { map.removeLayer('route'); map.removeSource('route'); }
                     updateMainButton();
                     tg.BackButton.hide();
                 }
@@ -336,31 +309,11 @@
                     clearOrderLocation('to');
                     dom.driverInfoScreen.classList.add('hidden');
                     dom.mainPanel.classList.remove('hidden');
-                    map.setView(KOZMODEMYANSK_CENTER, 13);
-                }
-
-                // --- Geocoding ---
-                async function geocode(query) {
-                    if (query.length < 3) { dom.searchResults.innerHTML = ''; return; }
-                    const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?bbox=${KOZMODEMYANSK_BBOX.join(',')}&access_token=${MAPBOX_TOKEN}&language=ru-RU&country=RU`;
-                    const response = await fetch(url);
-                    const data = await response.json();
-                    displayGeocodeResults(data.features);
-                }
-
-                function displayGeocodeResults(features) {
-                    dom.searchResults.innerHTML = '';
-                    features.forEach(feature => {
-                        const item = document.createElement('div');
-                        item.className = 'p-3 border-b border-gray-200 cursor-pointer hover:bg-gray-100';
-                        item.textContent = feature.place_name;
-                        item.onclick = () => updateOrderLocation(feature, searchContext);
-                        dom.searchResults.appendChild(item);
-                    });
+                    map.flyTo({ center: KOZMODEMYANSK_CENTER, zoom: 13 });
                 }
                 
-                async function reverseGeocode(coords, context) {
-                    const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${coords[1]},${coords[0]}.json?types=address,poi&access_token=${MAPBOX_TOKEN}&language=ru-RU`;
+                async function reverseGeocode(coords, context) { // coords is LngLat object
+                    const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${coords.lng},${coords.lat}.json?types=address,poi&access_token=${MAPBOX_TOKEN}&language=ru-RU`;
                     const response = await fetch(url);
                     const data = await response.json();
                     if (data.features && data.features.length > 0) {
@@ -371,7 +324,7 @@
                 function handleMapClick(e) {
                     const context = !orderData.from ? 'from' : !orderData.to ? 'to' : null;
                     if (!context) return;
-                    reverseGeocode([e.latlng.lat, e.latlng.lng], context);
+                    reverseGeocode(e.lngLat, context);
                 }
 
                 // --- EVENT LISTENERS ---
@@ -381,21 +334,11 @@
                 dom.toClear.onclick = (e) => { e.stopPropagation(); clearOrderLocation('to'); };
                 dom.overlay.onclick = closeSheet;
                 dom.cancelOrderBtn.onclick = resetToInitialState;
-
-                dom.searchInput.oninput = () => {
-                    clearTimeout(searchTimer);
-                    searchTimer = setTimeout(() => geocode(dom.searchInput.value), 300);
-                };
                 
                 tg.onEvent('mainButtonClicked', () => {
-                    // TODO: This is where the call to your backend should be.
-                    // Instead of tg.sendData(), you would use fetch() to send the order
-                    // to your server and then poll for status updates.
-                    // For now, we simulate this process.
-                    
                     const finalData = {
                         queryId: tg.initDataUnsafe?.queryId, user: tg.initDataUnsafe?.user,
-                        order: { ...orderData, tariff: selectedTariff.name, price: calculatePrice(selectedTariff) }
+                        order: { ...orderData, price: FIXED_PRICE }
                     };
                     console.log("Order Data Sent to Backend (simulation):", JSON.stringify(finalData, null, 2));
 
@@ -403,12 +346,11 @@
                     dom.mainPanel.classList.add('hidden');
                     dom.searchingScreen.classList.remove('hidden');
 
-                    // --- Simulate finding a driver ---
                     setTimeout(() => {
                         dom.searchingScreen.classList.add('hidden');
                         dom.driverInfoScreen.classList.remove('hidden');
                         tg.BackButton.show();
-                    }, 4000); // 4 second delay
+                    }, 4000);
                 });
                 
                 tg.onEvent('backButtonClicked', resetToInitialState);
