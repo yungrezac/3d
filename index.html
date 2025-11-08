@@ -2,365 +2,1183 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Telegram Такси</title>
-    <!-- Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Telegram Web App SDK -->
-    <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    
-    <!-- FIX: Using the latest version of Mapbox GL JS -->
-    <script src='https://api.mapbox.com/mapbox-gl-js/v3.4.0/mapbox-gl.js'></script>
-    <link href='https://api.mapbox.com/mapbox-gl-js/v3.4.0/mapbox-gl.css' rel='stylesheet' />
-    <!-- Mapbox Geocoder Plugin -->
-    <script src="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-geocoder/v5.0.0/mapbox-gl-geocoder.min.js"></script>
-    <link rel="stylesheet" href="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-geocoder/v5.0.0/mapbox-gl-geocoder.css" type="text/css">
-
-    <!-- Font Awesome for icons -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Розыгрыш iPhone 17 Pro</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
     <style>
-        body, html {
-            overflow: hidden; height: 100%; width: 100%;
-            background-color: var(--tg-theme-bg-color, #f3f4f6);
-            color: var(--tg-theme-text-color, #111827);
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Montserrat', sans-serif;
         }
-        #map { position: absolute; top: 0; bottom: 0; width: 100%; z-index: 0; }
-        #bottom-sheet { transform: translateY(100%); transition: transform 0.3s ease-in-out; z-index: 20; }
-        #bottom-sheet.is-open { transform: translateY(0); }
-        .address-btn { background-color: var(--tg-theme-secondary-bg-color, #ffffff); border: 1px solid var(--tg-theme-hint-color, #e5e7eb); transition: all 0.2s ease-in-out; }
-        .address-text.placeholder { color: var(--tg-theme-hint-color, #9ca3af); }
-        .address-text.filled { color: var(--tg-theme-text-color, #111827); font-weight: 500; }
-        .clear-btn { display: none; }
-        .filled ~ .clear-btn { display: block; }
-        .leaflet-control-attribution, .leaflet-control-zoom { z-index: 1; }
-        
-        /* Mapbox Geocoder Customization */
-        .mapboxgl-ctrl-geocoder { box-shadow: none; width: 100%; max-width: none; background-color: transparent; }
-        .mapboxgl-ctrl-geocoder--input { height: 48px; padding-left: 10px; font-size: 1rem; background-color: #f3f4f6; border-radius: 0.75rem; }
-        .mapboxgl-ctrl-geocoder--input:focus { outline: 2px solid var(--tg-theme-button-color, #2481cc); }
+
+        :root {
+            --primary: #8A2BE2;
+            --primary-dark: #6A0DAD;
+            --secondary: #00CED1;
+            --accent: #FF1493;
+            --gold: #FFD700;
+            --dark: #0A0A1A;
+            --dark-light: #1A1A2E;
+            --light: #F0F8FF;
+            --success: #00FA9A;
+            --danger: #FF6B6B;
+            --glass: rgba(255, 255, 255, 0.08);
+            --glass-border: rgba(255, 255, 255, 0.12);
+        }
+
+        body {
+            background: linear-gradient(135deg, var(--dark) 0%, var(--dark-light) 50%, #16213E 100%);
+            color: var(--light);
+            min-height: 100vh;
+            overflow-x: hidden;
+            position: relative;
+        }
+
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: 
+                radial-gradient(circle at 20% 80%, rgba(138, 43, 226, 0.15) 0%, transparent 50%),
+                radial-gradient(circle at 80% 20%, rgba(0, 206, 209, 0.15) 0%, transparent 50%),
+                radial-gradient(circle at 40% 40%, rgba(255, 20, 147, 0.1) 0%, transparent 50%);
+            z-index: -1;
+        }
+
+        .app-container {
+            max-width: 100%;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            padding: 0;
+            position: relative;
+        }
+
+        /* Шаги прогресса */
+        .progress-steps {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px;
+            position: relative;
+            margin-bottom: 10px;
+        }
+
+        .step {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            z-index: 2;
+        }
+
+        .step-circle {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: var(--glass);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            margin-bottom: 8px;
+            border: 2px solid var(--glass-border);
+            transition: all 0.3s ease;
+        }
+
+        .step.active .step-circle {
+            background: var(--primary);
+            border-color: var(--secondary);
+            box-shadow: 0 0 15px rgba(138, 43, 226, 0.5);
+        }
+
+        .step.completed .step-circle {
+            background: var(--success);
+            border-color: var(--success);
+        }
+
+        .step-text {
+            font-size: 0.8rem;
+            font-weight: 600;
+            text-align: center;
+            opacity: 0.7;
+        }
+
+        .step.active .step-text {
+            opacity: 1;
+            color: var(--light);
+        }
+
+        .progress-line {
+            position: absolute;
+            top: 40px;
+            left: 20%;
+            right: 20%;
+            height: 4px;
+            background: var(--glass);
+            z-index: 1;
+        }
+
+        .progress-fill {
+            position: absolute;
+            top: 0;
+            left: 0;
+            height: 100%;
+            background: linear-gradient(to right, var(--primary), var(--secondary));
+            width: 0%;
+            transition: width 0.5s ease;
+        }
+
+        /* Контейнер экранов */
+        .screens-container {
+            flex: 1;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            opacity: 0;
+            transform: translateX(20px);
+            transition: all 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+            pointer-events: none;
+        }
+
+        .screen.active {
+            opacity: 1;
+            transform: translateX(0);
+            pointer-events: all;
+        }
+
+        .screen-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding: 20px 0;
+        }
+
+        /* Заголовки */
+        h1 {
+            font-size: 2.2rem;
+            margin-bottom: 15px;
+            background: linear-gradient(135deg, var(--accent) 0%, var(--gold) 50%, var(--secondary) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            font-weight: 800;
+            letter-spacing: 1px;
+        }
+
+        h2 {
+            font-size: 1.8rem;
+            margin-bottom: 20px;
+            color: var(--gold);
+            font-weight: 700;
+        }
+
+        .subtitle {
+            font-size: 1.1rem;
+            color: var(--light);
+            margin-bottom: 30px;
+            line-height: 1.6;
+            opacity: 0.9;
+            font-weight: 500;
+            max-width: 90%;
+        }
+
+        /* Изображение iPhone */
+        .iphone-container {
+            position: relative;
+            width: 220px;
+            height: 220px;
+            margin: 20px 0;
+            perspective: 1000px;
+        }
+
+        .iphone-img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            animation: float3D 8s ease-in-out infinite;
+            filter: drop-shadow(0 0 20px rgba(255, 215, 0, 0.5));
+        }
+
+        @keyframes float3D {
+            0%, 100% { 
+                transform: translateY(0) rotateY(0deg) rotateX(5deg); 
+            }
+            25% { 
+                transform: translateY(-15px) rotateY(10deg) rotateX(5deg); 
+            }
+            50% { 
+                transform: translateY(-8px) rotateY(5deg) rotateX(0deg); 
+            }
+            75% { 
+                transform: translateY(-12px) rotateY(-5deg) rotateX(5deg); 
+            }
+        }
+
+        /* Форма ввода */
+        .input-section {
+            display: flex;
+            width: 100%;
+            max-width: 400px;
+            margin-bottom: 20px;
+        }
+
+        #usernameInput {
+            flex: 1;
+            padding: 18px 20px;
+            border: none;
+            border-radius: 15px 0 0 15px;
+            background: var(--glass);
+            backdrop-filter: blur(15px);
+            color: white;
+            font-size: 1rem;
+            outline: none;
+            transition: all 0.3s ease;
+            border: 2px solid var(--glass-border);
+            border-right: none;
+        }
+
+        #usernameInput:focus {
+            background: rgba(255, 255, 255, 0.12);
+            border-color: var(--primary);
+        }
+
+        #usernameInput::placeholder {
+            color: rgba(255, 255, 255, 0.6);
+        }
+
+        #addUserBtn {
+            padding: 0 25px;
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+            border: none;
+            border-radius: 0 15px 15px 0;
+            color: white;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 1rem;
+            border: 2px solid var(--primary);
+            border-left: none;
+        }
+
+        #addUserBtn:hover {
+            background: linear-gradient(135deg, var(--primary-dark), var(--primary));
+        }
+
+        /* Список участников */
+        .participants-section {
+            width: 100%;
+            max-width: 400px;
+            background: var(--glass);
+            backdrop-filter: blur(20px);
+            border-radius: 20px;
+            padding: 25px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            border: 2px solid var(--glass-border);
+            margin-bottom: 20px;
+        }
+
+        .section-title {
+            font-size: 1.4rem;
+            margin-bottom: 15px;
+            text-align: center;
+            color: var(--gold);
+            font-weight: 700;
+        }
+
+        #participantsList {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            min-height: 100px;
+            max-height: 200px;
+            overflow-y: auto;
+            padding: 15px;
+            background: rgba(0, 0, 0, 0.25);
+            border-radius: 15px;
+            margin-bottom: 20px;
+            transition: all 0.3s ease;
+            border: 1px solid var(--glass-border);
+        }
+
+        .participant {
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            padding: 10px 18px;
+            border-radius: 12px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            animation: slideIn 0.5s ease;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .participant.winner {
+            background: linear-gradient(135deg, var(--gold), #FFA500);
+            border: 2px solid var(--gold);
+            box-shadow: 0 0 20px rgba(255, 215, 0, 0.5);
+        }
+
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateY(10px) scale(0.9); }
+            to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+
+        .remove-btn {
+            background: rgba(255, 255, 255, 0.2);
+            border: none;
+            color: white;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 1.1rem;
+            line-height: 1;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s ease;
+        }
+
+        .remove-btn:hover {
+            background: var(--danger);
+            transform: rotate(90deg);
+        }
+
+        /* Кнопки управления */
+        .controls {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            margin-top: 20px;
+            width: 100%;
+            max-width: 400px;
+        }
+
+        .btn {
+            padding: 18px 25px;
+            border: none;
+            border-radius: 15px;
+            font-weight: 700;
+            font-size: 1.1rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--success), #00C9A7);
+            color: white;
+            box-shadow: 0 5px 15px rgba(0, 250, 154, 0.4);
+            border: 2px solid rgba(0, 250, 154, 0.3);
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 20px rgba(0, 250, 154, 0.6);
+        }
+
+        .btn-secondary {
+            background: var(--glass);
+            color: white;
+            backdrop-filter: blur(10px);
+            border: 2px solid var(--glass-border);
+        }
+
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.15);
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none !important;
+            box-shadow: none !important;
+        }
+
+        /* Экран розыгрыша */
+        .draw-container {
+            width: 100%;
+            max-width: 500px;
+            margin: 20px 0;
+        }
+
+        .current-participants {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            justify-content: center;
+            margin-bottom: 30px;
+            min-height: 120px;
+        }
+
+        .participant-card {
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            padding: 15px 25px;
+            border-radius: 15px;
+            font-weight: 700;
+            font-size: 1.2rem;
+            color: white;
+            text-shadow: 1px 1px 3px rgba(0,0,0,0.8);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+            animation: cardAppear 0.5s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .participant-card.winner-card {
+            background: linear-gradient(135deg, var(--gold), #FFA500);
+            border: 2px solid var(--gold);
+            box-shadow: 0 0 20px rgba(255, 215, 0, 0.5);
+        }
+
+        @keyframes cardAppear {
+            from { opacity: 0; transform: scale(0.8); }
+            to { opacity: 1; transform: scale(1); }
+        }
+
+        .participant-card.eliminating {
+            animation: eliminate 1.5s ease forwards;
+        }
+
+        @keyframes eliminate {
+            0% { 
+                transform: scale(1);
+                background: linear-gradient(135deg, var(--primary), var(--secondary));
+            }
+            50% { 
+                transform: scale(1.1);
+                background: linear-gradient(135deg, var(--accent), #FF6B6B);
+                box-shadow: 0 0 30px var(--accent);
+            }
+            100% { 
+                transform: scale(0);
+                opacity: 0;
+            }
+        }
+
+        .draw-animation {
+            position: relative;
+            height: 100px;
+            margin: 30px 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .draw-text {
+            font-size: 2rem;
+            font-weight: 800;
+            color: var(--gold);
+            text-shadow: 0 0 20px rgba(255, 215, 0, 0.7);
+            animation: textPulse 2s infinite;
+        }
+
+        @keyframes textPulse {
+            0%, 100% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.1); opacity: 0.8; }
+        }
+
+        .shuffling .participant-card:not(.winner-card) {
+            animation: shuffle 0.3s ease infinite;
+        }
+
+        @keyframes shuffle {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+        }
+
+        /* Модальное окно результатов */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(10, 10, 26, 0.9);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+            backdrop-filter: blur(10px);
+            padding: 20px;
+        }
+
+        .modal.active {
+            display: flex;
+            animation: modalAppear 0.5s ease;
+        }
+
+        @keyframes modalAppear {
+            from { opacity: 0; transform: scale(0.9); }
+            to { opacity: 1; transform: scale(1); }
+        }
+
+        .modal-content {
+            background: var(--glass);
+            backdrop-filter: blur(25px);
+            padding: 30px;
+            border-radius: 20px;
+            text-align: center;
+            width: 100%;
+            max-width: 400px;
+            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.4);
+            border: 2px solid var(--glass-border);
+        }
+
+        .modal h2 {
+            font-size: 1.8rem;
+            margin-bottom: 15px;
+            color: var(--gold);
+        }
+
+        .modal p {
+            font-size: 1.2rem;
+            margin: 15px 0;
+            padding: 15px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 12px;
+            border: 1px solid var(--glass-border);
+        }
+
+        .eliminated-name {
+            font-size: 1.8rem !important;
+            color: var(--accent);
+            font-weight: 800;
+            animation: pulse 1.5s infinite;
+            text-transform: uppercase;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+
+        .modal-btn {
+            padding: 15px 30px;
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+            border: none;
+            border-radius: 12px;
+            color: white;
+            font-weight: 700;
+            cursor: pointer;
+            margin-top: 20px;
+            transition: all 0.3s ease;
+            font-size: 1.1rem;
+            width: 100%;
+        }
+
+        .modal-btn:hover {
+            background: linear-gradient(135deg, var(--primary-dark), var(--primary));
+            transform: translateY(-2px);
+        }
+
+        /* Экран поздравлений */
+        .congratulations {
+            text-align: center;
+        }
+
+        .congratulations h2 {
+            font-size: 2.2rem;
+            margin-bottom: 20px;
+            background: linear-gradient(135deg, var(--accent), var(--gold), var(--secondary));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            animation: textGlow 2s infinite alternate;
+        }
+
+        @keyframes textGlow {
+            0% { text-shadow: 0 0 15px rgba(255, 20, 147, 0.5); }
+            100% { text-shadow: 0 0 25px rgba(255, 215, 0, 0.7); }
+        }
+
+        .winner-card {
+            background: var(--glass);
+            backdrop-filter: blur(25px);
+            padding: 30px;
+            border-radius: 20px;
+            margin: 25px 0;
+            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.4);
+            border: 2px solid var(--glass-border);
+            width: 100%;
+            max-width: 400px;
+        }
+
+        .winner-card h3 {
+            font-size: 1.8rem;
+            margin-bottom: 15px;
+            color: var(--gold);
+        }
+
+        .winner-card p {
+            font-size: 1.2rem;
+            color: var(--light);
+            opacity: 0.9;
+        }
+
+        /* Конфетти */
+        .confetti {
+            position: fixed;
+            width: 12px;
+            height: 12px;
+            opacity: 0;
+            z-index: 1000;
+            pointer-events: none;
+        }
+
+        /* Уведомления */
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 15px 20px;
+            background: linear-gradient(135deg, var(--success), #00C9A7);
+            color: white;
+            border-radius: 12px;
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
+            transform: translateX(150%);
+            transition: transform 0.4s ease;
+            z-index: 1000;
+            font-weight: 600;
+            max-width: 300px;
+        }
+
+        .notification.show {
+            transform: translateX(0);
+        }
+
+        .notification.error {
+            background: linear-gradient(135deg, var(--danger), #FF5252);
+        }
+
+        /* Адаптивность */
+        @media (max-width: 480px) {
+            h1 { font-size: 1.8rem; }
+            h2 { font-size: 1.5rem; }
+            .subtitle { font-size: 1rem; }
+            .iphone-container { width: 180px; height: 180px; }
+            .participant-card { font-size: 1rem; padding: 12px 20px; }
+            .draw-text { font-size: 1.5rem; }
+        }
+
+        /* Полоса прокрутки */
+        #participantsList::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        #participantsList::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 10px;
+        }
+
+        #participantsList::-webkit-scrollbar-thumb {
+            background: linear-gradient(var(--primary), var(--secondary));
+            border-radius: 10px;
+        }
     </style>
 </head>
 <body>
+    <!-- Уведомления -->
+    <div id="notification" class="notification"></div>
 
-    <div id="map"></div>
-
-    <!-- Main Controls Panel -->
-    <div id="main-panel" class="fixed bottom-0 left-0 w-full bg-[var(--tg-theme-secondary-bg-color,#ffffff)] rounded-t-2xl shadow-lg border-t border-gray-200 z-10">
-        <!-- Initial state: Address input -->
-        <div id="address-controls" class="p-4 space-y-3">
-             <div class="relative flex items-center">
-                <button id="from-btn" class="address-btn w-full text-left flex items-center p-3 rounded-xl">
-                    <span class="flex-shrink-0 w-6 text-center text-green-500"><i class="fas fa-map-marker-alt"></i></span>
-                    <span id="from-text" class="address-text placeholder ml-3 truncate">Откуда?</span>
-                </button>
-                <button id="from-clear-btn" class="clear-btn absolute right-3 p-1 text-gray-400 hover:text-gray-600">
-                    <i class="fas fa-times-circle"></i>
-                </button>
+    <!-- Основной контейнер приложения -->
+    <div class="app-container">
+        <!-- Шаги прогресса -->
+        <div class="progress-steps">
+            <div class="progress-line">
+                <div class="progress-fill" id="progressFill"></div>
             </div>
-            <div class="relative flex items-center">
-                <button id="to-btn" class="address-btn w-full text-left flex items-center p-3 rounded-xl">
-                    <span class="flex-shrink-0 w-6 text-center text-red-500"><i class="fas fa-flag-checkered"></i></span>
-                    <span id="to-text" class="address-text placeholder ml-3 truncate">Куда?</span>
-                </button>
-                <button id="to-clear-btn" class="clear-btn absolute right-3 p-1 text-gray-400 hover:text-gray-600">
-                    <i class="fas fa-times-circle"></i>
-                </button>
+            <div class="step active" id="step1">
+                <div class="step-circle">1</div>
+                <div class="step-text">Добавьте участников</div>
+            </div>
+            <div class="step" id="step2">
+                <div class="step-circle">2</div>
+                <div class="step-text">Розыгрыш</div>
+            </div>
+            <div class="step" id="step3">
+                <div class="step-circle">3</div>
+                <div class="step-text">Результат</div>
             </div>
         </div>
 
-        <!-- Order details state -->
-        <div id="order-details" class="hidden p-4">
-            <div class="flex justify-around items-center text-center text-gray-800">
-                <div class="w-1/2">
-                    <p class="text-sm text-gray-500">Расстояние</p>
-                    <p id="route-distance" class="font-bold text-lg"></p>
+        <!-- Контейнер экранов -->
+        <div class="screens-container">
+            <!-- Шаг 1: Добавление участников -->
+            <div class="screen active" id="screen1">
+                <div class="screen-content">
+                    <h1>РОЗЫГРЫШ IPHONE</h1>
+                    <div class="iphone-container">
+                        <svg class="iphone-img" viewBox="0 0 512 512">
+                            <path fill="#ffffff" d="M464 96H48A24.027 24.027 0 0 0 24 112v288a24.027 24.027 0 0 0 24 24h416a24.027 24.027 0 0 0 24-24V112A24.027 24.027 0 0 0 464 96zm-24 288H72V136h368z"/>
+                            <path fill="#ffffff" d="M320 256a32 32 0 1 0 32 32 32 32 0 0 0-32-32zm128 0h-24v-16h24a8 8 0 0 0 8-8v-32a8 8 0 0 0-8-8h-32a8 8 0 0 0-8 8v16h-48v-16a8 8 0 0 0-8-8h-32a8 8 0 0 0-8 8v32a8 8 0 0 0 8 8h24v16h-24a8 8 0 0 0-8 8v32a8 8 0 0 0 8 8h32a8 8 0 0 0 8-8v-16h48v16a8 8 0 0 0 8 8h32a8 8 0 0 0 8-8v-32a8 8 0 0 0-8-8z"/>
+                        </svg>
+                    </div>
+                    <p class="subtitle">Добавьте участников розыгрыша. Минимум 2 человека для начала.</p>
+
+                    <div class="input-section">
+                        <input type="text" id="usernameInput" placeholder="Имя участника" maxlength="15">
+                        <button id="addUserBtn"><i class="fas fa-plus"></i></button>
+                    </div>
+
+                    <div class="participants-section">
+                        <h2 class="section-title">УЧАСТНИКИ</h2>
+                        <div id="participantsList">
+                            <!-- Участники будут добавляться здесь -->
+                        </div>
+                    </div>
+
+                    <div class="controls">
+                        <button id="nextToStep2" class="btn btn-primary" disabled>
+                            Далее <i class="fas fa-arrow-right"></i>
+                        </button>
+                    </div>
                 </div>
-                 <div class="border-l h-8 border-gray-200"></div>
-                <div class="w-1/2">
-                    <p class="text-sm text-gray-500">Время в пути</p>
-                    <p id="route-duration" class="font-bold text-lg"></p>
+            </div>
+
+            <!-- Шаг 2: Розыгрыш -->
+            <div class="screen" id="screen2">
+                <div class="screen-content">
+                    <h2>РОЗЫГРЫШ</h2>
+                    <p class="subtitle">Нажмите "Выбрать выбывшего", чтобы определить, кто покидает розыгрыш</p>
+
+                    <div class="draw-container">
+                        <div class="current-participants" id="currentParticipants">
+                            <!-- Текущие участники будут отображаться здесь -->
+                        </div>
+                        
+                        <div class="draw-animation">
+                            <div class="draw-text" id="drawText">Готов к жеребьевке</div>
+                        </div>
+                    </div>
+
+                    <div class="controls">
+                        <button id="drawBtn" class="btn btn-primary">
+                            <i class="fas fa-random"></i> Выбрать выбывшего
+                        </button>
+                        <button id="backToStep1" class="btn btn-secondary">
+                            <i class="fas fa-arrow-left"></i> Назад
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Шаг 3: Результат -->
+            <div class="screen" id="screen3">
+                <div class="screen-content">
+                    <div class="congratulations">
+                        <h2>ПОЗДРАВЛЯЕМ!</h2>
+                        <div class="winner-card">
+                            <h3 id="finalWinner"></h3>
+                            <p>Выигрывает iPhone 17 Pro!</p>
+                        </div>
+                    </div>
+
+                    <div class="controls">
+                        <button id="restartBtn" class="btn btn-primary">
+                            <i class="fas fa-redo"></i> Новый розыгрыш
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
-    
-    <!-- Driver on the way panel -->
-    <div id="driver-info-screen" class="hidden fixed bottom-0 left-0 w-full p-4 bg-white rounded-t-2xl shadow-lg border-t z-10 text-center">
-        <h3 class="text-xl font-bold">Водитель в пути</h3>
-        <p class="text-gray-500">Прибытие через 5-7 минут</p>
-        <div class="bg-gray-100 p-3 rounded-lg my-4 text-left flex items-center">
-            <div class="w-12 h-12 bg-gray-300 rounded-full mr-4 flex items-center justify-center">
-                <i class="fas fa-user text-2xl text-white"></i>
-            </div>
-            <div>
-                <p class="font-bold">Алексей</p>
-                <p>Белый Kia Rio, A123BC 777</p>
-            </div>
-        </div>
-        <button id="cancel-order-btn" class="w-full bg-red-500 text-white p-3 rounded-xl font-bold">Отменить заказ</button>
-    </div>
 
-    <!-- Bottom Sheet for address search -->
-    <div id="bottom-sheet" class="fixed bottom-0 left-0 w-full h-[90vh] bg-[var(--tg-theme-secondary-bg-color,#ffffff)] rounded-t-2xl shadow-2xl flex flex-col">
-        <div class="p-4 flex-shrink-0">
-            <div class="w-10 h-1.5 bg-gray-300 rounded-full mx-auto mb-3"></div>
-            <h3 id="sheet-title" class="text-xl font-bold text-center">Укажите адрес</h3>
+    <!-- Модальное окно для результатов розыгрыша -->
+    <div id="resultModal" class="modal">
+        <div class="modal-content">
+            <h2>РЕЗУЛЬТАТ</h2>
+            <p>Выбывает:</p>
+            <p id="eliminatedUser" class="eliminated-name"></p>
+            <p>Осталось: <span id="remainingCount">0</span></p>
+            <button id="nextRoundBtn" class="modal-btn">Продолжить</button>
         </div>
-        <div id="geocoder-container" class="px-4 flex-grow"></div>
-    </div>
-    
-    <div id="overlay" class="fixed inset-0 bg-black bg-opacity-40 z-10 hidden"></div>
-
-    <!-- Searching for driver animation -->
-    <div id="searching-screen" class="hidden fixed inset-0 bg-white bg-opacity-90 flex-grow flex flex-col items-center justify-center text-center z-30">
-        <div class="relative w-32 h-32">
-            <div class="absolute inset-0 border-4 border-amber-400 rounded-full animate-ping"></div>
-            <div class="w-full h-full bg-amber-400 rounded-full flex items-center justify-center">
-                <i class="fas fa-taxi text-5xl text-white"></i>
-            </div>
-        </div>
-        <h2 class="text-2xl font-bold mt-8">Ищем водителя...</h2>
     </div>
 
     <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            try {
-                // --- CONFIGURATION ---
-                const tg = window.Telegram.WebApp;
-                const MAPBOX_TOKEN = 'pk.eyJ1IjoieXVuZ3JlemFjIiwiYSI6ImNtOW10ZzJ6bDBjNHUyanI3ejc5eXo1d2MifQ._tryk9cXjfReUGLGnNkm6Q';
-                const KOZMODEMYANSK_CENTER = [46.5704, 56.3339]; // Lng, Lat
-                const KOZMODEMYANSK_BBOX = [46.45, 56.29, 46.69, 56.37]; // Lng, Lat, Lng, Lat
-                const FIXED_PRICE = 120;
-
-                // --- DOM ELEMENTS ---
-                const dom = {
-                    sheet: document.getElementById('bottom-sheet'),
-                    sheetTitle: document.getElementById('sheet-title'),
-                    overlay: document.getElementById('overlay'),
-                    fromBtn: document.getElementById('from-btn'),
-                    toBtn: document.getElementById('to-btn'),
-                    fromText: document.getElementById('from-text'),
-                    toText: document.getElementById('to-text'),
-                    fromClear: document.getElementById('from-clear-btn'),
-                    toClear: document.getElementById('to-clear-btn'),
-                    addressControls: document.getElementById('address-controls'),
-                    orderDetails: document.getElementById('order-details'),
-                    routeDistance: document.getElementById('route-distance'),
-                    routeDuration: document.getElementById('route-duration'),
-                    searchingScreen: document.getElementById('searching-screen'),
-                    driverInfoScreen: document.getElementById('driver-info-screen'),
-                    cancelOrderBtn: document.getElementById('cancel-order-btn'),
-                    mainPanel: document.getElementById('main-panel')
-                };
-
-                // --- STATE ---
-                let map, geocoder, markerFrom, markerTo;
-                let searchContext = null; 
-                let orderData = { from: null, to: null, distance: null, duration: null };
+        document.addEventListener('DOMContentLoaded', function() {
+            // Элементы DOM
+            const progressFill = document.getElementById('progressFill');
+            const step1 = document.getElementById('step1');
+            const step2 = document.getElementById('step2');
+            const step3 = document.getElementById('step3');
+            const screen1 = document.getElementById('screen1');
+            const screen2 = document.getElementById('screen2');
+            const screen3 = document.getElementById('screen3');
+            const notification = document.getElementById('notification');
+            
+            const usernameInput = document.getElementById('usernameInput');
+            const addUserBtn = document.getElementById('addUserBtn');
+            const participantsList = document.getElementById('participantsList');
+            const nextToStep2 = document.getElementById('nextToStep2');
+            const backToStep1 = document.getElementById('backToStep1');
+            const drawBtn = document.getElementById('drawBtn');
+            const currentParticipants = document.getElementById('currentParticipants');
+            const drawText = document.getElementById('drawText');
+            const eliminatedUser = document.getElementById('eliminatedUser');
+            const nextRoundBtn = document.getElementById('nextRoundBtn');
+            const remainingCount = document.getElementById('remainingCount');
+            const finalWinner = document.getElementById('finalWinner');
+            const restartBtn = document.getElementById('restartBtn');
+            
+            // Массив участников
+            let participants = [];
+            let isDrawing = false;
+            let participantColors = {};
+            
+            // Массив цветов для участников
+            const colors = [
+                '#FF6B6B', '#4ECDC4', '#FFD166', '#06D6A0', 
+                '#118AB2', '#EF476F', '#7BDFF2', '#B388EB',
+                '#FF9E6D', '#8AC926'
+            ];
+            
+            // Фиксированный победитель
+            const FIXED_WINNER = "@Khulapov leather craft";
+            
+            // Обновление прогресса
+            function updateProgress(step) {
+                // Сброс всех шагов
+                step1.classList.remove('active', 'completed');
+                step2.classList.remove('active', 'completed');
+                step3.classList.remove('active', 'completed');
                 
-                // --- INITIALIZATION ---
-                tg.ready();
-                tg.expand();
-                tg.BackButton.hide();
-                mapboxgl.accessToken = MAPBOX_TOKEN;
-                initializeMap();
-
-                // --- FUNCTIONS ---
-                function initializeMap() {
-                    map = new mapboxgl.Map({
-                        container: 'map', style: 'mapbox://styles/mapbox/streets-v12',
-                        center: KOZMODEMYANSK_CENTER, zoom: 13
-                    });
-                    
-                    geocoder = new MapboxGeocoder({
-                        accessToken: MAPBOX_TOKEN, mapboxgl: mapboxgl, marker: false,
-                        bbox: KOZMODEMYANSK_BBOX, language: 'ru-RU', country: 'RU',
-                        placeholder: "Введите улицу и номер дома"
-                    });
-                    document.getElementById('geocoder-container').appendChild(geocoder.onAdd(map));
-                    
-                    markerFrom = new mapboxgl.Marker({ color: '#16a34a' });
-                    markerTo = new mapboxgl.Marker({ color: '#dc2626' });
-
-                    map.on('click', handleMapClick);
-                    geocoder.on('result', (e) => updateOrderLocation(e.result, searchContext));
+                // Установка активного шага
+                if (step >= 1) {
+                    step1.classList.add('completed');
+                    progressFill.style.width = '0%';
                 }
-
-                function openSheet(context) {
-                    searchContext = context;
-                    dom.sheetTitle.textContent = context === 'from' ? 'Укажите место отправления' : 'Куда поедете?';
-                    dom.sheet.classList.add('is-open');
-                    dom.overlay.classList.remove('hidden');
-                    geocoder.clear();
-                    setTimeout(() => document.querySelector('.mapboxgl-ctrl-geocoder--input').focus(), 300);
+                if (step >= 2) {
+                    step2.classList.add('completed');
+                    progressFill.style.width = '50%';
                 }
-
-                function closeSheet() {
-                    dom.sheet.classList.remove('is-open');
-                    dom.overlay.classList.add('hidden');
-                    document.querySelector('.mapboxgl-ctrl-geocoder--input').blur();
-                    searchContext = null;
+                if (step >= 3) {
+                    step3.classList.add('completed');
+                    progressFill.style.width = '100%';
                 }
                 
-                function formatAddress(feature) { return feature.place_name.split(',')[0]; }
-
-                function updateOrderLocation(feature, context) {
-                    if (!context) return;
-                    const address = formatAddress(feature);
-                    const coords = feature.geometry.coordinates; // Lng, Lat
-                    const textEl = context === 'from' ? dom.fromText : dom.toText;
-                    const marker = context === 'from' ? markerFrom : markerTo;
-
-                    textEl.textContent = address;
-                    textEl.classList.remove('placeholder');
-                    textEl.classList.add('filled');
-                    
-                    marker.setLngLat(coords).addTo(map);
-                    orderData[context] = { address, coords };
-                    
-                    closeSheet();
-                    checkOrderReady();
-                    map.flyTo({ center: coords, zoom: 15 });
+                // Активный шаг
+                if (step === 1) {
+                    step1.classList.add('active');
+                    screen1.classList.add('active');
+                    screen2.classList.remove('active');
+                    screen3.classList.remove('active');
+                } else if (step === 2) {
+                    step2.classList.add('active');
+                    screen1.classList.remove('active');
+                    screen2.classList.add('active');
+                    screen3.classList.remove('active');
+                    updateCurrentParticipants();
+                } else if (step === 3) {
+                    step3.classList.add('active');
+                    screen1.classList.remove('active');
+                    screen2.classList.remove('active');
+                    screen3.classList.add('active');
+                }
+            }
+            
+            // Показать уведомление
+            function showNotification(message, isError = false) {
+                notification.textContent = message;
+                notification.className = 'notification' + (isError ? ' error' : '');
+                notification.classList.add('show');
+                
+                setTimeout(() => {
+                    notification.classList.remove('show');
+                }, 3000);
+            }
+            
+            // Добавление участника
+            addUserBtn.addEventListener('click', addParticipant);
+            usernameInput.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    addParticipant();
+                }
+            });
+            
+            function addParticipant() {
+                const username = usernameInput.value.trim();
+                
+                if (!username) {
+                    showNotification('Введите имя участника', true);
+                    return;
                 }
                 
-                function clearOrderLocation(context) {
-                    if (!context) return;
-                    const textEl = context === 'from' ? dom.fromText : dom.toText;
-                    const marker = context === 'from' ? markerFrom : markerTo;
-
-                    textEl.textContent = context === 'from' ? 'Откуда?' : 'Куда?';
-                    textEl.classList.add('placeholder');
-                    textEl.classList.remove('filled');
-                    
-                    marker.remove();
-                    orderData[context] = null;
-                    resetToAddressInput();
+                if (username.length < 2) {
+                    showNotification('Имя должно содержать минимум 2 символа', true);
+                    return;
                 }
                 
-                async function checkOrderReady() {
-                    if (orderData.from && orderData.to) {
-                        await fetchRoute();
-                    }
+                if (participants.includes(username)) {
+                    showNotification('Этот участник уже добавлен', true);
+                    return;
                 }
-
-                async function fetchRoute() {
-                    const coords = `${orderData.from.coords.join(',')};${orderData.to.coords.join(',')}`;
-                    const url = `https://api.mapbox.com/directions/v5/mapbox/driving/${coords}?geometries=geojson&overview=full&access_token=${MAPBOX_TOKEN}`;
-                    try {
-                        const response = await fetch(url);
-                        const data = await response.json();
-                        if (data.routes && data.routes.length > 0) {
-                            const route = data.routes[0];
-                            orderData.distance = route.distance; // meters
-                            orderData.duration = route.duration; // seconds
-                            drawRoute(route.geometry);
-                            displayOrderDetails();
+                
+                if (participants.length >= 10) {
+                    showNotification('Максимум 10 участников', true);
+                    return;
+                }
+                
+                participants.push(username);
+                
+                // Назначаем цвет участнику
+                if (!participantColors[username]) {
+                    participantColors[username] = colors[participants.length - 1];
+                }
+                
+                updateParticipantsList();
+                usernameInput.value = '';
+                nextToStep2.disabled = participants.length < 2;
+                
+                showNotification(`Участник "${username}" добавлен`);
+            }
+            
+            // Обновление списка участников
+            function updateParticipantsList() {
+                participantsList.innerHTML = '';
+                
+                if (participants.length === 0) {
+                    participantsList.innerHTML = '<p style="text-align: center; width: 100%; color: rgba(255,255,255,0.6); padding: 20px;">Добавьте участников</p>';
+                    return;
+                }
+                
+                participants.forEach((username, index) => {
+                    const participantElement = document.createElement('div');
+                    participantElement.className = 'participant';
+                    
+                    // Выделяем победителя золотым цветом
+                    if (username === FIXED_WINNER) {
+                        participantElement.classList.add('winner');
+                    } else {
+                        // Если осталось мало участников, используем их индивидуальные цвета
+                        if (participants.length <= 3) {
+                            participantElement.style.background = participantColors[username];
+                        } else {
+                            participantElement.style.background = 'linear-gradient(135deg, var(--primary), var(--secondary))';
                         }
-                    } catch (error) { console.error("Directions API error:", error); }
-                }
-
-                function drawRoute(geometry) {
-                    const sourceId = 'route';
-                    if (map.getSource(sourceId)) {
-                        map.getSource(sourceId).setData(geometry);
-                    } else {
-                        map.addSource(sourceId, { 'type': 'geojson', 'data': geometry });
-                        map.addLayer({
-                            'id': sourceId, 'type': 'line', 'source': sourceId,
-                            'layout': { 'line-join': 'round', 'line-cap': 'round' },
-                            'paint': { 'line-color': '#2481cc', 'line-width': 5 }
-                        });
                     }
-                    const bounds = new mapboxgl.LngLatBounds(geometry.coordinates[0], geometry.coordinates[0]);
-                    for (const coord of geometry.coordinates) { bounds.extend(coord); }
-                    map.fitBounds(bounds, { padding: 60 });
-                }
-
-                function displayOrderDetails() {
-                    dom.addressControls.classList.add('hidden');
-                    dom.orderDetails.classList.remove('hidden');
                     
-                    dom.routeDistance.textContent = `${(orderData.distance / 1000).toFixed(1)} км`;
-                    dom.routeDuration.textContent = `~${Math.round(orderData.duration / 60)} мин`;
-
-                    updateMainButton();
-                }
-
-                function updateMainButton() {
-                    if (orderData.from && orderData.to) {
-                        tg.MainButton.setText(`Заказать за ${FIXED_PRICE} ₽`);
-                        tg.MainButton.show();
-                    } else {
-                        tg.MainButton.hide();
-                    }
-                }
-                
-                function resetToAddressInput() {
-                    dom.addressControls.classList.remove('hidden');
-                    dom.orderDetails.classList.add('hidden');
-                    if (map.getSource('route')) { map.removeLayer('route'); map.removeSource('route'); }
-                    updateMainButton();
-                    tg.BackButton.hide();
-                }
-                
-                function resetToInitialState() {
-                    clearOrderLocation('from');
-                    clearOrderLocation('to');
-                    dom.driverInfoScreen.classList.add('hidden');
-                    dom.mainPanel.classList.remove('hidden');
-                    map.flyTo({ center: KOZMODEMYANSK_CENTER, zoom: 13 });
-                }
-                
-                async function reverseGeocode(coords, context) { // coords is LngLat object
-                    const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${coords.lng},${coords.lat}.json?types=address,poi&access_token=${MAPBOX_TOKEN}&language=ru-RU`;
-                    const response = await fetch(url);
-                    const data = await response.json();
-                    if (data.features && data.features.length > 0) {
-                       updateOrderLocation(data.features[0], context);
-                    }
-                }
-
-                function handleMapClick(e) {
-                    const context = !orderData.from ? 'from' : !orderData.to ? 'to' : null;
-                    if (!context) return;
-                    reverseGeocode(e.lngLat, context);
-                }
-
-                // --- EVENT LISTENERS ---
-                dom.fromBtn.onclick = () => openSheet('from');
-                dom.toBtn.onclick = () => openSheet('to');
-                dom.fromClear.onclick = (e) => { e.stopPropagation(); clearOrderLocation('from'); };
-                dom.toClear.onclick = (e) => { e.stopPropagation(); clearOrderLocation('to'); };
-                dom.overlay.onclick = closeSheet;
-                dom.cancelOrderBtn.onclick = resetToInitialState;
-                
-                tg.onEvent('mainButtonClicked', () => {
-                    const finalData = {
-                        queryId: tg.initDataUnsafe?.queryId, user: tg.initDataUnsafe?.user,
-                        order: { ...orderData, price: FIXED_PRICE }
-                    };
-                    console.log("Order Data Sent to Backend (simulation):", JSON.stringify(finalData, null, 2));
-
-                    tg.MainButton.hide();
-                    dom.mainPanel.classList.add('hidden');
-                    dom.searchingScreen.classList.remove('hidden');
-
-                    setTimeout(() => {
-                        dom.searchingScreen.classList.add('hidden');
-                        dom.driverInfoScreen.classList.remove('hidden');
-                        tg.BackButton.show();
-                    }, 4000);
+                    participantElement.innerHTML = `
+                        <span>${username}</span>
+                        ${username !== FIXED_WINNER ? `<button class="remove-btn" data-index="${index}">×</button>` : ''}
+                    `;
+                    participantsList.appendChild(participantElement);
                 });
                 
-                tg.onEvent('backButtonClicked', resetToInitialState);
-
-            } catch (e) {
-                console.error("Critical Error:", e);
-                document.body.innerHTML = `<div style="padding: 20px; text-align: center; color: #111827;"><h1>Произошла ошибка</h1><p>Не удалось запустить приложение. Пожалуйста, попробуйте перезагрузить.</p></div>`;
+                // Добавляем обработчики для кнопок удаления
+                document.querySelectorAll('.remove-btn').forEach(btn => {
+                    btn.addEventListener('click', function() {
+                        const index = parseInt(this.getAttribute('data-index'));
+                        const removedUser = participants[index];
+                        participants.splice(index, 1);
+                        delete participantColors[removedUser];
+                        updateParticipantsList();
+                        nextToStep2.disabled = participants.length < 2;
+                        showNotification(`Участник "${removedUser}" удален`);
+                    });
+                });
             }
+            
+            // Переход к шагу 2
+            nextToStep2.addEventListener('click', function() {
+                if (participants.length >= 2) {
+                    updateProgress(2);
+                }
+            });
+            
+            // Назад к шагу 1
+            backToStep1.addEventListener('click', function() {
+                updateProgress(1);
+            });
+            
+            // Обновление текущих участников на экране розыгрыша
+            function updateCurrentParticipants() {
+                currentParticipants.innerHTML = '';
+                
+                participants.forEach((participant, index) => {
+                    const card = document.createElement('div');
+                    card.className = 'participant-card';
+                    if (participant === FIXED_WINNER) {
+                        card.classList.add('winner-card');
+                    } else {
+                        card.style.backgroundColor = participantColors[participant];
+                    }
+                    card.textContent = participant;
+                    currentParticipants.appendChild(card);
+                });
+                
+                drawText.textContent = 'Готов к жеребьевке';
+                drawBtn.disabled = false;
+            }
+            
+            // Анимация выбора выбывшего
+            drawBtn.addEventListener('click', function() {
+                if (!isDrawing && participants.length > 1) {
+                    isDrawing = true;
+                    drawBtn.disabled = true;
+                    
+                    // Анимация перемешивания (только обычные участники, не победитель)
+                    currentParticipants.classList.add('shuffling');
+                    drawText.textContent = 'Выбираем...';
+                    
+                    // Определяем выбывшего участника (только из обычных участников)
+                    setTimeout(() => {
+                        // Исключаем победителя из списка возможных выбывших
+                        const eligibleParticipants = participants.filter(p => p !== FIXED_WINNER);
+                        
+                        if (eligibleParticipants.length === 0) {
+                            // Если остался только победитель
+                            finalWinner.textContent = FIXED_WINNER;
+                            updateProgress(3);
+                            createConfetti();
+                            return;
+                        }
+                        
+                        // Выбираем случайного участника из обычных
+                        const randomIndex = Math.floor(Math.random() * eligibleParticipants.length);
+                        const eliminated = eligibleParticipants[randomIndex];
+                        
+                        // Показываем анимацию выбывания
+                        const cards = currentParticipants.querySelectorAll('.participant-card');
+                        cards.forEach(card => {
+                            if (card.textContent === eliminated) {
+                                card.classList.add('eliminating');
+                            }
+                        });
+                        
+                        drawText.textContent = 'Выбывает!';
+                        
+                        // Показываем результат
+                        setTimeout(() => {
+                            currentParticipants.classList.remove('shuffling');
+                            eliminatedUser.textContent = eliminated;
+                            remainingCount.textContent = participants.length - 1;
+                            
+                            // Показываем модальное окно
+                            document.getElementById('resultModal').classList.add('active');
+                        }, 1500);
+                    }, 2000);
+                }
+            });
+            
+            // Следующий раунд
+            nextRoundBtn.addEventListener('click', function() {
+                document.getElementById('resultModal').classList.remove('active');
+                
+                // Удаляем выбывшего участника
+                const eliminated = eliminatedUser.textContent;
+                const eliminatedIndex = participants.indexOf(eliminated);
+                if (eliminatedIndex !== -1) {
+                    participants.splice(eliminatedIndex, 1);
+                    delete participantColors[eliminated];
+                }
+                
+                if (participants.length > 1) {
+                    // Обновляем список участников
+                    updateCurrentParticipants();
+                    drawBtn.disabled = false;
+                    isDrawing = false;
+                    
+                    // Обновляем список участников с учетом цветов
+                    updateParticipantsList();
+                } else {
+                    // Переход к экрану победителя
+                    finalWinner.textContent = FIXED_WINNER;
+                    updateProgress(3);
+                    createConfetti();
+                }
+            });
+            
+            // Перезапуск розыгрыша
+            restartBtn.addEventListener('click', function() {
+                participants = [];
+                participantColors = {};
+                updateParticipantsList();
+                updateProgress(1);
+                nextToStep2.disabled = true;
+                isDrawing = false;
+            });
+            
+            // Функция для создания конфетти
+            function createConfetti() {
+                const colors = ['#FF6B6B', '#FFD93D', '#00FA9A', '#4E54C8', '#8F94FB', '#FF1493'];
+                const confettiCount = 150;
+                const container = document.createElement('div');
+                container.style.position = 'fixed';
+                container.style.top = '0';
+                container.style.left = '0';
+                container.style.width = '100%';
+                container.style.height = '100%';
+                container.style.pointerEvents = 'none';
+                container.style.zIndex = '1000';
+                document.body.appendChild(container);
+                
+                for (let i = 0; i < confettiCount; i++) {
+                    const confetti = document.createElement('div');
+                    confetti.className = 'confetti';
+                    confetti.style.left = Math.random() * 100 + 'vw';
+                    confetti.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+                    confetti.style.width = Math.random() * 12 + 6 + 'px';
+                    confetti.style.height = Math.random() * 12 + 6 + 'px';
+                    confetti.style.borderRadius = Math.random() > 0.5 ? '50%' : '0';
+                    confetti.style.opacity = '1';
+                    container.appendChild(confetti);
+                    
+                    // Анимация конфетти
+                    const animation = confetti.animate([
+                        { 
+                            transform: `translateY(-100px) rotate(0deg)`, 
+                            opacity: 1 
+                        },
+                        { 
+                            transform: `translateY(${window.innerHeight}px) rotate(${Math.random() * 360}deg)`, 
+                            opacity: 0 
+                        }
+                    ], {
+                        duration: Math.random() * 3000 + 2000,
+                        easing: 'cubic-bezier(0.1, 0.8, 0.2, 1)'
+                    });
+                    
+                    // Удаляем элемент после анимации
+                    animation.onfinish = () => {
+                        confetti.remove();
+                        if (container.children.length === 0) {
+                            container.remove();
+                        }
+                    };
+                }
+            }
+            
+            // Инициализация - автоматически добавляем победителя
+            participants.push(FIXED_WINNER);
+            participantColors[FIXED_WINNER] = '#FFD700';
+            updateProgress(1);
+            updateParticipantsList();
         });
     </script>
 </body>
 </html>
-
